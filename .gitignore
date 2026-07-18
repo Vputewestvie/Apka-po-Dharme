@@ -8,8 +8,7 @@ tmp_*
 *.tmp
 *.test.ts
 .env
-.env.*
+.env.local
 *.sqlite
 data/*.sqlite
-apps/mini-app/.env
-apps/mini-app/.env.*
+!.env.example
