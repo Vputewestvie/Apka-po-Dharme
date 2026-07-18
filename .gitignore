@@ -9,3 +9,5 @@ tmp_*
 *.test.ts
 .env
 .env.*
+*.sqlite
+data/*.sqlite
