@@ -1,0 +1,22 @@
+{
+  "name": "dnevnik-duhovnoy-praktiki",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:api": "npm run dev -w @app/api",
+    "dev:mini-app": "npm run dev -w @app/mini-app",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run test -w @app/api",
+    "clean": "tsc --build --clean"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "tsx": "^4.23.0",
+    "typescript": "^7.0.2"
+  }
+}
