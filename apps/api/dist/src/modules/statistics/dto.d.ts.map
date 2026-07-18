@@ -1,0 +1,1 @@
+{"version":3,"file":"dto.d.ts","sourceRoot":"","sources":["../../../../src/modules/statistics/dto.ts"],"names":[],"mappings":"AAAA,MAAM,MAAM,gBAAgB,GAAG,OAAO,GAAG,MAAM,GAAG,OAAO,GAAG,MAAM,GAAG,KAAK,CAAC;AAE3E,MAAM,MAAM,eAAe,GAAG;IAC5B,MAAM,EAAE,MAAM,CAAC;IACf,MAAM,EAAE,gBAAgB,CAAC;CAC1B,CAAC"}
