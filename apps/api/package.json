@@ -1,0 +1,19 @@
+{
+  "name": "@app/api",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "tsx src/http.ts",
+    "start": "tsx src/http.ts",
+    "smoke": "tsx src/smoke.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "vitest": "^4.1.10"
+  }
+}

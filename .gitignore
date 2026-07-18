@@ -5,9 +5,9 @@ coverage
 *.log
 tmp_*
 *.tmp
-*.test.ts
 .env
 .env.local
+.restore_zip/
 *.sqlite
 data/*.sqlite
 !.env.example

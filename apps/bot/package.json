@@ -1,0 +1,9 @@
+{
+  "name": "@app/bot",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "tsx src/runtime.ts",
+    "start": "tsx src/runtime.ts"
+  }
+}
