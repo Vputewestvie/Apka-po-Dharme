@@ -1,10 +1,19 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { createServer } from "node:http";
 import { dirname, resolve, extname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createApp } from "./main";
 import type { ApiRequest, JsonValue } from "./types";
 import { authenticateRequest } from "./modules/auth";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+// http.ts находится в /app/apps/api/src/
+// Корень проекта: подняться на 2 уровня вверх → /app
+const PROJECT_ROOT = resolve(__dirname, "../..");
+// Каталог со статикой Mini App
+const DIST_DIR = resolve(PROJECT_ROOT, "mini-app/dist");
 
 const MIME_TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -24,8 +33,7 @@ const MIME_TYPES: Record<string, string> = {
 function serveStatic(response: ServerResponse, filePath: string) {
   // filePath may start with / on Linux, remove it to avoid resolve() treating it as absolute
   const relativePath = filePath.startsWith("/") ? filePath.slice(1) : filePath;
-  const fullPath = resolve(process.cwd(), "apps/mini-app/dist", relativePath);
-  console.log("[DIAG] serveStatic fullPath:", fullPath);
+  const fullPath = resolve(DIST_DIR, relativePath);
   if (!existsSync(fullPath)) {
     response.writeHead(404);
     response.end("Not found");
@@ -52,7 +60,7 @@ function loadDotEnvFile(filePath: string) {
 }
 
 function loadDotEnv() {
-  let currentDir = process.cwd();
+  let currentDir = PROJECT_ROOT;
   while (true) {
     const candidate = resolve(currentDir, ".env");
     if (existsSync(candidate)) {
@@ -68,7 +76,7 @@ function loadDotEnv() {
 loadDotEnv();
 
 const port = Number(process.env.PORT ?? "3001");
-const databasePath = resolve(process.cwd(), process.env.APP_DATABASE_PATH ?? "data/app.sqlite");
+const databasePath = resolve(PROJECT_ROOT, process.env.APP_DATABASE_PATH ?? "data/app.sqlite");
 
 mkdirSync(dirname(databasePath), { recursive: true });
 
@@ -133,19 +141,8 @@ async function main() {
   
   if (request.method === "GET" && isStaticPath) {
     const staticPath = url.pathname === "/" ? "/index.html" : url.pathname;
-    // Remove leading / for resolve() to treat as relative path
     const relativePath = staticPath.startsWith("/") ? staticPath.slice(1) : staticPath;
-    const fullPath = resolve(process.cwd(), "apps/mini-app/dist", relativePath);
-    const distDir = resolve(process.cwd(), "apps/mini-app/dist");
-    const indexFile = resolve(distDir, "index.html");
-    console.log("[DIAG] GET", url.pathname);
-    console.log("[DIAG] cwd:", process.cwd());
-    console.log("[DIAG] fullPath:", fullPath);
-    console.log("[DIAG] distDir exists:", existsSync(distDir));
-    console.log("[DIAG] index.html exists:", existsSync(indexFile));
-    if (existsSync(distDir)) {
-      console.log("[DIAG] distDir contents:", readdirSync(distDir));
-    }
+    const fullPath = resolve(DIST_DIR, relativePath);
     if (existsSync(fullPath)) {
       serveStatic(response, staticPath);
       return;
