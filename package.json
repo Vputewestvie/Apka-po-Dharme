@@ -9,7 +9,10 @@
   ],
   "scripts": {
     "dev:api": "npm run dev -w @app/api",
+    "dev:bot": "npm run dev -w @app/bot",
     "dev:mini-app": "npm run dev -w @app/mini-app",
+    "start:api": "npm run start -w @app/api",
+    "start:bot": "npm run start -w @app/bot",
     "typecheck": "tsc --noEmit",
     "test": "npm run test -w @app/api",
     "clean": "tsc --build --clean"

@@ -1,10 +1,38 @@
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { createServer } from "node:http";
-import { dirname, resolve } from "node:path";
+import { dirname, resolve, extname } from "node:path";
 import { createApp } from "./main";
 import type { ApiRequest, JsonValue } from "./types";
 import { authenticateRequest } from "./modules/auth";
+
+const MIME_TYPES: Record<string, string> = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "application/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".svg": "image/svg+xml",
+  ".ico": "image/x-icon",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
+  ".ttf": "font/ttf",
+};
+
+function serveStatic(response: ServerResponse, filePath: string) {
+  const fullPath = resolve(process.cwd(), "apps/mini-app/dist", filePath);
+  if (!existsSync(fullPath)) {
+    response.writeHead(404);
+    response.end("Not found");
+    return;
+  }
+  const content = readFileSync(fullPath);
+  const mimeType = MIME_TYPES[extname(fullPath)] ?? "application/octet-stream";
+  response.writeHead(200, { "content-type": mimeType });
+  response.end(content);
+}
 
 function loadDotEnvFile(filePath: string) {
   const content = readFileSync(filePath, "utf8");
@@ -88,12 +116,36 @@ const server = createServer(async (request, response) => {
     return;
   }
 
+  const url = new URL(request.url, `http://${request.headers.host ?? `localhost:${port}`}`);
+
+  // Health check endpoint (no auth required)
+  if (request.method === "GET" && url.pathname === "/health") {
+    writeJson(response, 200, { ok: true, data: { status: "ok", service: "api" } });
+    return;
+  }
+
+  // Serve static files for mini-app (no auth required)
+  // Check if it's a static file (has extension) or root path
+  const isStaticPath = url.pathname === "/" || extname(url.pathname) !== "";
+  
+  if (request.method === "GET" && isStaticPath) {
+    const staticPath = url.pathname === "/" ? "/index.html" : url.pathname;
+    const fullPath = resolve(process.cwd(), "apps/mini-app/dist", staticPath);
+    if (existsSync(fullPath)) {
+      serveStatic(response, staticPath);
+      return;
+    }
+    // If static file not found, return 404
+    response.writeHead(404);
+    response.end("Not found");
+    return;
+  }
+
   if (request.method === "OPTIONS") {
     writeJson(response, 204, null);
     return;
   }
 
-  const url = new URL(request.url, `http://${request.headers.host ?? `localhost:${port}`}`);
   const body = await readBody(request).catch(() => undefined);
 
   const botToken = process.env.TELEGRAM_BOT_TOKEN ?? "";
