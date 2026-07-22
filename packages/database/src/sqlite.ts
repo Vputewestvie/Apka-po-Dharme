@@ -1,17 +1,41 @@
-import { readFileSync } from "node:fs";
-import { DatabaseSync } from "node:sqlite";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import initSqlJs, { type Database } from "sql.js";
 import type { SqlParams, SqlResult, SQLiteClient } from "./client";
+
+const require = createRequire(import.meta.url);
 
 function normalizeParams(params: SqlParams) {
   return params.map((param) => (typeof param === "boolean" ? Number(param) : param));
 }
 
-export function openSqliteDatabase(filePath: string) {
-  return new DatabaseSync(filePath);
+export interface SqliteDatabaseHandle {
+  database: Database;
+  filePath: string;
+  persist(): void;
 }
 
-export function applyMigrations(database: DatabaseSync, migrationSql: string) {
-  database.exec(migrationSql);
+export async function openSqliteDatabase(filePath: string): Promise<SqliteDatabaseHandle> {
+  const SQL = await initSqlJs({
+    locateFile: () => require.resolve("sql.js/dist/sql-wasm.wasm"),
+  });
+  const database = filePath === ":memory:" || !existsSync(filePath)
+    ? new SQL.Database()
+    : new SQL.Database(readFileSync(filePath));
+
+  return {
+    database,
+    filePath,
+    persist() {
+      if (filePath === ":memory:") return;
+      writeFileSync(filePath, database.export());
+    },
+  };
+}
+
+export function applyMigrations(handle: SqliteDatabaseHandle, migrationSql: string) {
+  handle.database.exec(migrationSql);
+  handle.persist();
 }
 
 export function loadInitMigration() {
@@ -19,17 +43,30 @@ export function loadInitMigration() {
 }
 
 export class SqliteClientAdapter implements SQLiteClient {
-  constructor(private readonly database: DatabaseSync) {}
+  constructor(private readonly handle: SqliteDatabaseHandle) {}
 
   query<T = Record<string, unknown>>(sql: string, params: SqlParams = []): Promise<SqlResult<T>> {
-    const statement = this.database.prepare(sql);
-    const rows = statement.all(...normalizeParams(params)) as T[];
-    return Promise.resolve({ rows });
+    const statement = this.handle.database.prepare(sql);
+    try {
+      statement.bind(normalizeParams(params));
+      const rows: T[] = [];
+      while (statement.step()) {
+        rows.push(statement.getAsObject() as T);
+      }
+      return Promise.resolve({ rows });
+    } finally {
+      statement.free();
+    }
   }
 
   execute(sql: string, params: SqlParams = []): Promise<void> {
-    const statement = this.database.prepare(sql);
-    statement.run(...normalizeParams(params));
-    return Promise.resolve();
+    const statement = this.handle.database.prepare(sql);
+    try {
+      statement.run(normalizeParams(params));
+      this.handle.persist();
+      return Promise.resolve();
+    } finally {
+      statement.free();
+    }
   }
 }

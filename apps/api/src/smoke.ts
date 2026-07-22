@@ -27,7 +27,7 @@ function assertOk(result: unknown, message: string) {
 
 async function main() {
   const databasePath = ensureDataDir();
-  const app = createApp(databasePath);
+  const app = await createApp(databasePath);
   const userId = "demo-user";
   const date = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 

@@ -2,8 +2,8 @@ import { bootstrapApi } from "./bootstrap";
 import { handleRequest } from "./server";
 import type { ApiRequest } from "./types";
 
-export function createApp(databasePath = "./data/app.sqlite") {
-  const container = bootstrapApi(databasePath);
+export async function createApp(databasePath = "./data/app.sqlite") {
+  const container = await bootstrapApi(databasePath);
 
   return {
     handleRequest(request: ApiRequest) {
@@ -13,4 +13,4 @@ export function createApp(databasePath = "./data/app.sqlite") {
   };
 }
 
-export type TestApp = ReturnType<typeof createApp>;
+export type TestApp = Awaited<ReturnType<typeof createApp>>;

@@ -3,7 +3,7 @@ import { createApp } from "../../src/main";
 
 describe("API /practices", () => {
   it("returns 401 without auth", async () => {
-    const app = createApp(":memory:");
+    const app = await createApp(":memory:");
     const response = await app.handleRequest({
       method: "GET",
       pathname: "/practices",
@@ -15,7 +15,7 @@ describe("API /practices", () => {
   });
 
   it("returns practices with valid x-user-id", async () => {
-    const app = createApp(":memory:");
+    const app = await createApp(":memory:");
     const response = await app.handleRequest({
       method: "GET",
       pathname: "/practices",
@@ -30,7 +30,7 @@ describe("API /practices", () => {
   });
 
   it("creates practice with valid body", async () => {
-    const app = createApp(":memory:");
+    const app = await createApp(":memory:");
     const response = await app.handleRequest({
       method: "POST",
       pathname: "/practices",
@@ -54,7 +54,7 @@ describe("API /practices", () => {
   });
 
   it("returns 400 for invalid practice body", async () => {
-    const app = createApp(":memory:");
+    const app = await createApp(":memory:");
     const response = await app.handleRequest({
       method: "POST",
       pathname: "/practices",

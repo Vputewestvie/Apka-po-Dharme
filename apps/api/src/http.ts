@@ -69,8 +69,6 @@ const databasePath = resolve(process.cwd(), process.env.APP_DATABASE_PATH ?? "da
 
 mkdirSync(dirname(databasePath), { recursive: true });
 
-const app = createApp(databasePath);
-
 function writeJson(response: ServerResponse, statusCode: number, body: JsonValue) {
   response.writeHead(statusCode, {
     "content-type": "application/json; charset=utf-8",
@@ -110,7 +108,9 @@ function readBody(request: IncomingMessage): Promise<JsonValue | undefined> {
   });
 }
 
-const server = createServer(async (request, response) => {
+async function main() {
+  const app = await createApp(databasePath);
+  const server = createServer(async (request, response) => {
   if (!request.url || !request.method) {
     writeJson(response, 400, { ok: false, error: "Invalid request" });
     return;
@@ -172,9 +172,15 @@ const server = createServer(async (request, response) => {
 
   const result = await app.handleRequest(apiRequest);
   writeJson(response, result.ok ? 200 : result.status ?? 500, result);
-});
+  });
 
-server.listen(port, () => {
-  console.log(`API server started on http://localhost:${port}`);
-  console.log(`Database: ${databasePath}`);
+  server.listen(port, () => {
+    console.log(`API server started on http://localhost:${port}`);
+    console.log(`Database: ${databasePath}`);
+  });
+}
+
+main().catch((error) => {
+  console.error("[http] failed to start", error);
+  process.exit(1);
 });

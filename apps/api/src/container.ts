@@ -13,8 +13,8 @@ import { ScheduleAiService } from "./modules/schedule";
 import { StatisticsService } from "./modules/statistics";
 import { TimerService } from "./modules/timer";
 
-export function createApiContainer(databasePath: string) {
-  const database = openSqliteDatabase(databasePath);
+export async function createApiContainer(databasePath: string) {
+  const database = await openSqliteDatabase(databasePath);
   applyMigrations(database, loadInitMigration());
 
   const client = new SqliteClientAdapter(database);
@@ -75,4 +75,4 @@ export function createApiContainer(databasePath: string) {
   };
 }
 
-export type ApiContainer = ReturnType<typeof createApiContainer>;
+export type ApiContainer = Awaited<ReturnType<typeof createApiContainer>>;
