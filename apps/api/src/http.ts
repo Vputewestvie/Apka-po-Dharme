@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { createServer } from "node:http";
 import { dirname, resolve, extname } from "node:path";
@@ -25,6 +25,7 @@ function serveStatic(response: ServerResponse, filePath: string) {
   // filePath may start with / on Linux, remove it to avoid resolve() treating it as absolute
   const relativePath = filePath.startsWith("/") ? filePath.slice(1) : filePath;
   const fullPath = resolve(process.cwd(), "apps/mini-app/dist", relativePath);
+  console.log("[DIAG] serveStatic fullPath:", fullPath);
   if (!existsSync(fullPath)) {
     response.writeHead(404);
     response.end("Not found");
@@ -135,6 +136,16 @@ async function main() {
     // Remove leading / for resolve() to treat as relative path
     const relativePath = staticPath.startsWith("/") ? staticPath.slice(1) : staticPath;
     const fullPath = resolve(process.cwd(), "apps/mini-app/dist", relativePath);
+    const distDir = resolve(process.cwd(), "apps/mini-app/dist");
+    const indexFile = resolve(distDir, "index.html");
+    console.log("[DIAG] GET", url.pathname);
+    console.log("[DIAG] cwd:", process.cwd());
+    console.log("[DIAG] fullPath:", fullPath);
+    console.log("[DIAG] distDir exists:", existsSync(distDir));
+    console.log("[DIAG] index.html exists:", existsSync(indexFile));
+    if (existsSync(distDir)) {
+      console.log("[DIAG] distDir contents:", readdirSync(distDir));
+    }
     if (existsSync(fullPath)) {
       serveStatic(response, staticPath);
       return;
