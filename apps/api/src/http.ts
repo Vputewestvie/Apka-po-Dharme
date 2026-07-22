@@ -22,7 +22,9 @@ const MIME_TYPES: Record<string, string> = {
 };
 
 function serveStatic(response: ServerResponse, filePath: string) {
-  const fullPath = resolve(process.cwd(), "apps/mini-app/dist", filePath);
+  // filePath may start with / on Linux, remove it to avoid resolve() treating it as absolute
+  const relativePath = filePath.startsWith("/") ? filePath.slice(1) : filePath;
+  const fullPath = resolve(process.cwd(), "apps/mini-app/dist", relativePath);
   if (!existsSync(fullPath)) {
     response.writeHead(404);
     response.end("Not found");
@@ -130,7 +132,9 @@ async function main() {
   
   if (request.method === "GET" && isStaticPath) {
     const staticPath = url.pathname === "/" ? "/index.html" : url.pathname;
-    const fullPath = resolve(process.cwd(), "apps/mini-app/dist", staticPath);
+    // Remove leading / for resolve() to treat as relative path
+    const relativePath = staticPath.startsWith("/") ? staticPath.slice(1) : staticPath;
+    const fullPath = resolve(process.cwd(), "apps/mini-app/dist", relativePath);
     if (existsSync(fullPath)) {
       serveStatic(response, staticPath);
       return;
