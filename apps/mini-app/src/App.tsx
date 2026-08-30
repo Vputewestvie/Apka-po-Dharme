@@ -14,6 +14,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   addTimerTime,
+  analyzeDiary,
   completeTimer,
   completeScheduledPractice,
   createDiaryEntry,
@@ -70,6 +71,7 @@ const navigation = [
 type ScreenActions = {
   busy: string | null;
   onCompletePractice: (item: ScheduledPracticeDto) => Promise<void>;
+  onAnalyzeDiary: (question: string) => Promise<string>;
   onCreateDiary: (input: {
     scheduledPracticeId: string;
     practiceId: string;
@@ -313,6 +315,20 @@ export function App() {
     });
   }
 
+  async function handleAnalyzeDiary(question: string) {
+    if (!dashboard) return "";
+
+    let analysis = "";
+    await runBusy("diary-ai", async () => {
+      const result = await analyzeDiary({
+        userId: dashboard.userId,
+        question,
+      });
+      analysis = result.analysis;
+    });
+    return analysis;
+  }
+
   async function handleStartPractice(item: ScheduledPracticeDto) {
     if (!dashboard) return;
     const practice = practiceMap.get(item.practiceId);
@@ -494,6 +510,7 @@ export function App() {
             busy,
             onCompletePractice: handleCompletePractice,
             onCreateDiary: handleCreateDiary,
+            onAnalyzeDiary: handleAnalyzeDiary,
             onCreatePractice: handleCreatePractice,
             onDeletePractice: handleDeletePractice,
             onGenerateAiSchedule: handleGenerateAiSchedule,
@@ -612,6 +629,8 @@ function renderScreen(
         <DiaryScreen
           busy={actions.busy === "diary"}
           diary={dashboard.diary}
+          aiBusy={actions.busy === "diary-ai"}
+          onAnalyzeDiary={actions.onAnalyzeDiary}
           onCreateDiary={actions.onCreateDiary}
           practiceMap={practiceMap}
           scheduledItems={dashboard.schedule?.items ?? []}
@@ -958,6 +977,8 @@ function ScheduleRow(props: { item: ScheduledPracticeDto; practice?: PracticeDto
 function DiaryScreen(props: {
   busy: boolean;
   diary: DiaryEntryDto[];
+  aiBusy: boolean;
+  onAnalyzeDiary: (question: string) => Promise<string>;
   onCreateDiary: (input: {
     scheduledPracticeId: string;
     practiceId: string;
@@ -970,6 +991,9 @@ function DiaryScreen(props: {
     props.scheduledItems[0]?.id ?? "",
   );
   const [text, setText] = useState("");
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiQuestion, setAiQuestion] = useState("");
+  const [aiAnswer, setAiAnswer] = useState("");
 
   useEffect(() => {
     setScheduledPracticeId(props.scheduledItems[0]?.id ?? "");
@@ -989,11 +1013,60 @@ function DiaryScreen(props: {
     setText("");
   }
 
+  async function handleAnalyze() {
+    const answer = await props.onAnalyzeDiary(aiQuestion);
+    if (answer) setAiAnswer(answer);
+  }
+
+  function entryTitle(entry: DiaryEntryDto): string {
+    return (
+      (entry.practiceId ? props.practiceMap.get(entry.practiceId)?.title : undefined) ??
+      entry.practiceTitle ??
+      "Практика"
+    );
+  }
+
   return (
     <section className="stack">
       <article className="panel">
-        <span className="eyebrow">Дневник</span>
-        <h2>{props.diary.length} записей</h2>
+        <div className="panel-head">
+          <div>
+            <span className="eyebrow">Дневник</span>
+            <h2>{props.diary.length} записей</h2>
+          </div>
+          <button
+            type="button"
+            className={aiOpen ? "ghost-button active" : "ghost-button"}
+            aria-expanded={aiOpen}
+            aria-label="Анализ дневника с помощью AI"
+            title="AI-анализ дневника"
+            onClick={() => setAiOpen((v) => !v)}
+          >
+            <Sparkles size={16} />
+          </button>
+        </div>
+        {aiOpen ? (
+          <div className="ai-composer">
+            <textarea
+              value={aiQuestion}
+              onChange={(event) => setAiQuestion(event.target.value)}
+              placeholder="Необязательный вопрос, например: «Почему мне сложно медитировать по утрам?»"
+              rows={2}
+            />
+            <button
+              type="button"
+              className="primary-button"
+              disabled={props.aiBusy || props.diary.length === 0}
+              onClick={() => void handleAnalyze()}
+            >
+              {props.aiBusy ? "Анализирую..." : "Проанализировать дневник"}
+            </button>
+            {props.diary.length === 0 ? (
+              <p className="ai-hint">Сначала добавь записи в дневник — анализировать пока нечего.</p>
+            ) : null}
+            {aiAnswer ? <div className="ai-answer">{aiAnswer}</div> : null}
+          </div>
+        ) : null}
         <div className="chip-list">
           {props.scheduledItems.map((item) => (
             <button
@@ -1026,7 +1099,7 @@ function DiaryScreen(props: {
           {props.diary.map((entry) => (
             <div key={entry.id} className="row-item row-item-text">
               <div>
-                <strong>{props.practiceMap.get(entry.practiceId)?.title ?? "Практика"}</strong>
+                <strong>{entryTitle(entry)}</strong>
                 <p>{entry.text}</p>
               </div>
               <span className="tag">{entry.kind}</span>

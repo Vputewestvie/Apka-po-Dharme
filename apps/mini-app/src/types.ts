@@ -48,14 +48,17 @@ export type ScheduleDto = {
 export type DiaryEntryDto = {
   id: string;
   userId: string;
-  practiceId: string;
-  scheduledPracticeId: string;
+  // Обнуляются, когда практика или пункт расписания удалены; название
+  // практики сохраняется в practiceTitle — записи дневника не теряются.
+  practiceId: string | null;
+  scheduledPracticeId: string | null;
   kind: "text" | "voice";
   createdAt: string;
   updatedAt: string;
   text: string;
   voiceFileId: string | null;
   transcription: string | null;
+  practiceTitle: string;
 };
 
 export type StatisticsDto = {

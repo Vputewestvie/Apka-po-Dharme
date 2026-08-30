@@ -188,6 +188,12 @@ export const createDiarySchema = z.object({
   text: z.string().optional().default(""),
 });
 
+/** AI-анализ дневника: вопрос необязателен. */
+export const diaryAiAnalyzeSchema = z.object({
+  userId: z.string().min(1),
+  question: z.string().max(2000).optional().default(""),
+});
+
 // --- Notifications ---
 
 export const scheduleNotificationSchema = z.object({

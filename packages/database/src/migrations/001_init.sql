@@ -133,8 +133,9 @@ CREATE TABLE IF NOT EXISTS practice_completions (
 CREATE TABLE IF NOT EXISTS journal_entries (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  practice_id TEXT NOT NULL REFERENCES practices(id) ON DELETE CASCADE,
-  scheduled_practice_id TEXT NOT NULL REFERENCES scheduled_practices(id) ON DELETE CASCADE,
+  practice_id TEXT REFERENCES practices(id) ON DELETE SET NULL,
+  scheduled_practice_id TEXT REFERENCES scheduled_practices(id) ON DELETE SET NULL,
+  practice_title TEXT NOT NULL DEFAULT '',
   kind TEXT NOT NULL,
   text TEXT NOT NULL,
   voice_file_id TEXT,

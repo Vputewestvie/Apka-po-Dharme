@@ -68,6 +68,7 @@ function diaryToRow(entry: DiaryEntry) {
     user_id: entry.userId,
     practice_id: entry.practiceId,
     scheduled_practice_id: entry.scheduledPracticeId,
+    practice_title: entry.practiceTitle,
     kind: entry.kind,
     text: entry.text,
     voice_file_id: entry.voiceFileId,
@@ -81,14 +82,15 @@ function diaryFromRow(row: Record<string, unknown>) {
   return new DiaryEntry(
     String(row.id),
     String(row.user_id),
-    String(row.practice_id),
-    String(row.scheduled_practice_id),
+    row.practice_id ? String(row.practice_id) : null,
+    row.scheduled_practice_id ? String(row.scheduled_practice_id) : null,
     String(row.kind) as DiaryEntry["kind"],
     String(row.created_at),
     String(row.updated_at ?? row.created_at),
     String(row.text ?? ""),
     row.voice_file_id ? String(row.voice_file_id) : null,
     row.transcription ? String(row.transcription) : null,
+    String(row.practice_title ?? ""),
   );
 }
 
@@ -292,9 +294,9 @@ export class SqliteDiaryRepository implements DiaryRepository {
     const row = diaryToRow(entry);
     await this.client.execute(
       `insert into journal_entries (
-        id, user_id, practice_id, scheduled_practice_id, kind, text, voice_file_id, transcription,
+        id, user_id, practice_id, scheduled_practice_id, practice_title, kind, text, voice_file_id, transcription,
         created_at, updated_at
-      ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       on conflict(id) do update set
         text = excluded.text,
         voice_file_id = excluded.voice_file_id,
@@ -305,6 +307,7 @@ export class SqliteDiaryRepository implements DiaryRepository {
         row.user_id,
         row.practice_id,
         row.scheduled_practice_id,
+        row.practice_title,
         row.kind,
         row.text,
         row.voice_file_id,

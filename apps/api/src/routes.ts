@@ -9,6 +9,7 @@ import {
   cancelNotificationSchema,
   changeScheduledPracticeTimeSchema,
   createDiarySchema,
+  diaryAiAnalyzeSchema,
   createScheduleSchema,
   markSentNotificationSchema,
   materialInputSchema,
@@ -328,6 +329,14 @@ const routeDefinitions: RouteDefinition[] = [
     handler: async (request, container) => {
       const body = validateOwned(createDiarySchema, request);
       return ok(toJson(await container.diaryService.create(body)));
+    },
+  },
+  {
+    method: "POST",
+    pathname: "/diary/ai/analyze",
+    handler: async (request, container) => {
+      const body = validateOwned(diaryAiAnalyzeSchema, request);
+      return ok(toJson(await container.diaryAiService.analyze(body.userId, body.question)));
     },
   },
 
