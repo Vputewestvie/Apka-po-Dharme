@@ -1,7 +1,7 @@
 import type { Practice } from "../../../../../packages/domain/src";
 import type { PracticeRepository } from "../../../../../packages/database/src";
 import type { ParsedScheduleCommand } from "../../../../../packages/ai-adapter/src";
-import { NotFoundError } from "../../validation";
+import { ValidationError } from "../../validation";
 import type { AiService } from "../ai";
 import { ScheduleService } from "./service";
 
@@ -86,21 +86,36 @@ function buildPractices(
   parsed: ParsedScheduleCommand,
   library: Practice[],
   nameToId: Record<string, string>,
-) {
-  return parsed.items.map((item, index) => {
+): { practices: Array<{ practiceId: string; plannedStartTime: null; plannedDurationMinutes: number; order: number }>; unmatched: string[] } {
+  const practices: Array<{ practiceId: string; plannedStartTime: null; plannedDurationMinutes: number; order: number }> = [];
+  const unmatched: string[] = [];
+
+  for (const item of parsed.items) {
     const practiceId = resolvePracticeId(item.practiceName, library, nameToId);
-    if (!practiceId) {
-      // Раньше имя использовалось как идентификатор и всё падало с 500.
-      // Ненайденная практика — ошибка запроса, а не сервера.
-      throw new NotFoundError(`Practice not found: "${item.practiceName}"`);
+    // Последняя проверка владения: клиентский nameToId мог указывать на чужую
+    // практику — такая считается ненайденной, а не добавляется в план.
+    if (!practiceId || !library.some((p) => p.id === practiceId)) {
+      // Ненайденное имя больше не роняет весь план (раньше это был 404 на
+      // каждый запрос, если в описании встречалась практика вне библиотеки).
+      // Такие пункты пропускаются и репортируются пользователю.
+      unmatched.push(item.practiceName);
+      continue;
     }
-    return {
+    const duration = Number(item.durationMinutes);
+    practices.push({
       practiceId,
       plannedStartTime: null,
-      plannedDurationMinutes: item.durationMinutes,
-      order: index,
-    };
-  });
+      plannedDurationMinutes: Number.isFinite(duration) && duration > 0 ? Math.round(duration) : 15,
+      order: practices.length,
+    });
+  }
+
+  return { practices, unmatched };
+}
+
+/** Дата «сегодня» по UTC — модель часто не возвращает дату в ответе. */
+function todayUtc(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
 export class ScheduleAiService {
@@ -112,29 +127,47 @@ export class ScheduleAiService {
 
   async createFromText(userId: string, text: string, practiceNameToId: Record<string, string>) {
     const parsed = await this.aiService.parseScheduleText(text, { userId });
-    if (!parsed.date) throw new NotFoundError("AI did not return schedule date");
-
-    const library = await this.practiceRepository.listByUserId(userId);
-    return this.scheduleService.create({
-      userId,
-      date: parsed.date,
-      title: "AI schedule",
-      source: "text_ai",
-      practices: buildPractices(parsed, library, practiceNameToId),
-    });
+    return this.applyParsed(userId, parsed, practiceNameToId, "AI schedule", "text_ai");
   }
 
   async createFromVoice(userId: string, fileId: string, practiceNameToId: Record<string, string>) {
     const parsed = await this.aiService.parseScheduleVoice(fileId, { userId });
-    if (!parsed.date) throw new NotFoundError("AI did not return schedule date");
+    return this.applyParsed(userId, parsed, practiceNameToId, "Voice schedule", "voice_ai");
+  }
 
+  /**
+   * Превращает разобранный моделью ответ в план дня.
+   *
+   * Мягкое поведение: без даты берём сегодня, ненайденные практики пропускаем
+   * (ошибка только если не нашлось ни одной), существующий план на дату
+   * заменяем, а не создаём дубль.
+   */
+  private async applyParsed(
+    userId: string,
+    parsed: ParsedScheduleCommand,
+    practiceNameToId: Record<string, string>,
+    title: string,
+    source: "text_ai" | "voice_ai",
+  ) {
     const library = await this.practiceRepository.listByUserId(userId);
-    return this.scheduleService.create({
-      userId,
-      date: parsed.date,
-      title: "Voice schedule",
-      source: "voice_ai",
-      practices: buildPractices(parsed, library, practiceNameToId),
-    });
+    if (library.length === 0) {
+      throw new ValidationError(
+        "В библиотеке нет практик. Сначала добавьте практики на вкладке «Практики», потом собирайте план.",
+      );
+    }
+
+    const { practices, unmatched } = buildPractices(parsed, library, practiceNameToId);
+    if (practices.length === 0) {
+      throw new ValidationError(
+        `Не нашёл в библиотеке ни одной практики из описания (${unmatched.join(", ")}). Добавьте их на вкладке «Практики» или назовите существующие: ${library.map((p) => p.title).join(", ")}.`,
+      );
+    }
+
+    const date = parsed.date ?? todayUtc();
+    const existing = await this.scheduleService.getByDate(userId, date);
+    if (existing) {
+      return this.scheduleService.replacePractices(userId, date, practices, title);
+    }
+    return this.scheduleService.create({ userId, date, title, source, practices });
   }
 }
