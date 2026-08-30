@@ -711,7 +711,15 @@ function TodayScreen(props: {
 
             return (
               <article key={item.id} className="practice-card">
-                <img src={practice.image.ref} alt={practice.title} className="practice-image" />
+                <img
+                  src={practice.image.ref}
+                  alt={practice.title}
+                  className="practice-image"
+                  onError={(event) => {
+                    // Битые/устаревшие ссылки на картинки не должны ломать карточку.
+                    event.currentTarget.src = "/images/categories/meditation.webp";
+                  }}
+                />
                 <div className="practice-body">
                   <div className="practice-top">
                     <div>
