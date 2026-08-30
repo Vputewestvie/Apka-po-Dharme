@@ -1,5 +1,35 @@
 import { z } from "zod";
 
+/** Операция запрещена: сущность существует, но принадлежит другому пользователю. */
+export class ForbiddenError extends Error {
+  readonly statusCode = 403;
+
+  constructor(message = "Forbidden") {
+    super(message);
+    this.name = "ForbiddenError";
+  }
+}
+
+/** Сущность не найдена. */
+export class NotFoundError extends Error {
+  readonly statusCode = 404;
+
+  constructor(message = "Not found") {
+    super(message);
+    this.name = "NotFoundError";
+  }
+}
+
+/** Запрос без действительной авторизации. */
+export class UnauthorizedError extends Error {
+  readonly statusCode = 401;
+
+  constructor(message = "Unauthorized") {
+    super(message);
+    this.name = "UnauthorizedError";
+  }
+}
+
 export class ValidationError extends Error {
   readonly statusCode = 400;
   readonly issues: string[];
@@ -126,9 +156,18 @@ export const startTimerSchema = z.object({
   plannedDurationMinutes: z.number().positive(),
 });
 
+/**
+ * Общая схема действий с таймером (пауза/возобновление/завершение/пропуск/добавление времени).
+ *
+ * Поля `seconds` и `minutes` нужны эндпоинту `/timer/add-time`: сервис читает
+ * их из распарсенного тела, поэтому Zod обязан их объявлять — иначе он
+ * отбрасывает их как неизвестные ключи и до сервиса доходит ноль.
+ */
 export const timerActionSchema = z.object({
   scheduledPracticeId: z.string().min(1, "scheduledPracticeId is required"),
   timestamp: z.string().min(1, "timestamp is required"),
+  seconds: z.number().positive().optional(),
+  minutes: z.number().positive().optional(),
   reason: z.string().optional(),
 });
 

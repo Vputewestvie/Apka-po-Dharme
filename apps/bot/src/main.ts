@@ -6,9 +6,19 @@ import { createMiniAppButton, createMiniAppLaunchLink } from "./mini-app";
 import { sendNotificationWithRetry } from "./notifications";
 import { TelegramBotApi, type TelegramUpdate } from "./telegram-api";
 
-export function createBotApp(config: BotConfig) {
+export function createBotApp(
+  config: BotConfig,
+  /**
+   * Слой «бот → данные». По умолчанию — HTTP-клиент к API, но Workers
+   * передаёт сюда процессный бэкенд: воркеру запрещено делать подзапрос
+   * на собственный URL (Cloudflare error 1042).
+   */
+  backend: Pick<BackendApiClient, "listPendingNotifications" | "markNotificationSent"> = new BackendApiClient(
+    config.apiBaseUrl,
+    config.internalToken,
+  ),
+) {
   const telegram = new TelegramBotApi(config.telegramBotToken);
-  const backend = new BackendApiClient(config.apiBaseUrl);
 
   async function handleUpdate(update: TelegramUpdate) {
     const text = update.message?.text;

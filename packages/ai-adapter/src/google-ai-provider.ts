@@ -1,6 +1,6 @@
 import type { AiProvider } from "./provider";
 import type { AiTextRequest, AiVoiceRequest, ParsedScheduleCommand } from "./types";
-import { parseJsonCommand } from "./parse-json-command";
+import { parseJsonCommand, todayIsoDate } from "./parse-json-command";
 
 export type GoogleAiProviderConfig = {
   apiKey: string;
@@ -13,7 +13,7 @@ export class GoogleAiProvider implements AiProvider {
   constructor(private readonly config: GoogleAiProviderConfig) {}
 
   async parseScheduleText(request: AiTextRequest): Promise<ParsedScheduleCommand> {
-    const prompt = `You are an assistant that parses Russian schedule commands into a strict JSON object. Respond with ONLY valid JSON and no extra text. The output object must use this schema:\n{\n  \"intent\": \"create_schedule\",\n  \"date\": \"YYYY-MM-DD\",\n  \"items\": [\n    {\"practiceName\": \"string\", \"durationMinutes\": number, \"timeOfDay\": \"morning|day|evening|any\"}\n  ],\n  \"rawText\": \"original text\"\n}\nIf the command contains relative date words like сегодня, завтра, послезавтра, вчера, tomorrow, today, or yesterday, convert them to the actual date in YYYY-MM-DD format.\nIf you cannot parse the command, return a JSON object with \"intent\":\"unknown\", \"date\":null, \"items\":[], \"rawText\":\"original text\".\nParse this Russian schedule command exactly:\n${request.text}`;
+    const prompt = `You are an assistant that parses Russian schedule commands into a strict JSON object. Respond with ONLY valid JSON and no extra text. The output object must use this schema:\n{\n  \"intent\": \"create_schedule\",\n  \"date\": \"YYYY-MM-DD\",\n  \"items\": [\n    {\"practiceName\": \"string\", \"durationMinutes\": number, \"timeOfDay\": \"morning|day|evening|any\"}\n  ],\n  \"rawText\": \"original text\"\n}\nToday's actual date is ${todayIsoDate()}. Always use it as the reference point: never invent another year or date.\nIf the command contains relative date words like сегодня, завтра, послезавтра, вчера, tomorrow, today, or yesterday, convert them to the actual date in YYYY-MM-DD format relative to today's date above.\nIf the command mentions no date at all, use today's date (${todayIsoDate()}).\nIf you cannot parse the command, return a JSON object with \"intent\":\"unknown\", \"date\":null, \"items\":[], \"rawText\":\"original text\".\nParse this Russian schedule command exactly:\n${request.text}`;
     const content = await this.complete(prompt);
     return parseJsonCommand(content, request.text);
   }

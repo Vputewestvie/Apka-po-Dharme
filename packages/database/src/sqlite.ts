@@ -3,8 +3,6 @@ import { createRequire } from "node:module";
 import initSqlJs, { type Database } from "sql.js";
 import type { SqlParams, SqlResult, SQLiteClient } from "./client";
 
-const require = createRequire(import.meta.url);
-
 function normalizeParams(params: SqlParams) {
   return params.map((param) => (typeof param === "boolean" ? Number(param) : param));
 }
@@ -16,6 +14,11 @@ export interface SqliteDatabaseHandle {
 }
 
 export async function openSqliteDatabase(filePath: string): Promise<SqliteDatabaseHandle> {
+  // createRequire вызывается лениво и только здесь: на уровне модуля он падал
+  // в Cloudflare Workers, где import.meta.url неприменим. Модуль sqlite.ts
+  // попадает в бандл воркера (экспортируется из index.ts), хотя сам sql.js
+  // там не используется — база приходит биндингом D1.
+  const require = createRequire(import.meta.url);
   const SQL = await initSqlJs({
     locateFile: () => require.resolve("sql.js/dist/sql-wasm.wasm"),
   });

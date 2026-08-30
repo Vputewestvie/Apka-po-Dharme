@@ -1,8 +1,9 @@
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { createServer } from "node:http";
-import { dirname, resolve, extname } from "node:path";
+import { dirname, resolve, extname, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { loadProjectDotEnv } from "../../../packages/shared/src/load-dot-env";
 import { createApp } from "./main";
 import type { ApiRequest, JsonValue } from "./types";
 import { authenticateRequest } from "./modules/auth";
@@ -28,13 +29,31 @@ const MIME_TYPES: Record<string, string> = {
   ".woff": "font/woff",
   ".woff2": "font/woff2",
   ".ttf": "font/ttf",
+  ".mp3": "audio/mpeg",
+  ".ogg": "audio/ogg",
+  ".wav": "audio/wav",
+  ".m4a": "audio/mp4",
+  ".webm": "audio/webm",
 };
 
-function serveStatic(response: ServerResponse, filePath: string) {
+/**
+ * Разрешает путь внутри каталога статики и гарантирует, что он не выходит
+ * за его пределы (защита от обхода каталога через `..` и кодированные пути).
+ * Возвращает null, если путь недопустим или файла нет.
+ */
+function resolveStaticPath(filePath: string): string | null {
   // filePath may start with / on Linux, remove it to avoid resolve() treating it as absolute
   const relativePath = filePath.startsWith("/") ? filePath.slice(1) : filePath;
   const fullPath = resolve(DIST_DIR, relativePath);
-  if (!existsSync(fullPath)) {
+  const root = DIST_DIR.endsWith(sep) ? DIST_DIR : DIST_DIR + sep;
+  if (fullPath !== DIST_DIR && !fullPath.startsWith(root)) return null;
+  if (!existsSync(fullPath)) return null;
+  return fullPath;
+}
+
+function serveStatic(response: ServerResponse, filePath: string) {
+  const fullPath = resolveStaticPath(filePath);
+  if (!fullPath) {
     response.writeHead(404);
     response.end("Not found");
     return;
@@ -45,35 +64,9 @@ function serveStatic(response: ServerResponse, filePath: string) {
   response.end(content);
 }
 
-function loadDotEnvFile(filePath: string) {
-  const content = readFileSync(filePath, "utf8");
-  for (const rawLine of content.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith("#")) continue;
-    const [key, ...rest] = line.split("=");
-    const value = rest.join("=").trim();
-    if (!key) continue;
-    if (process.env[key] === undefined) {
-      process.env[key] = value;
-    }
-  }
-}
-
-function loadDotEnv() {
-  let currentDir = PROJECT_ROOT;
-  while (true) {
-    const candidate = resolve(currentDir, ".env");
-    if (existsSync(candidate)) {
-      loadDotEnvFile(candidate);
-      break;
-    }
-    const parent = dirname(currentDir);
-    if (parent === currentDir) break;
-    currentDir = parent;
-  }
-}
-
-loadDotEnv();
+// Общий загрузчик .env (тот же, что использует бот): поднимается вверх по
+// каталогам, переменные окружения всегда главнее файла.
+loadProjectDotEnv(PROJECT_ROOT);
 
 const port = Number(process.env.PORT ?? "3001");
 const databasePath = resolve(PROJECT_ROOT, process.env.APP_DATABASE_PATH ?? "data/app.sqlite");
@@ -85,7 +78,7 @@ function writeJson(response: ServerResponse, statusCode: number, body: JsonValue
     "content-type": "application/json; charset=utf-8",
     "access-control-allow-origin": "*",
     "access-control-allow-methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-    "access-control-allow-headers": "content-type,x-user-id,x-telegram-init-data",
+    "access-control-allow-headers": "content-type,x-user-id,x-telegram-init-data,x-internal-token",
   });
   response.end(JSON.stringify(body));
 }
@@ -141,9 +134,7 @@ async function main() {
   
   if (request.method === "GET" && isStaticPath) {
     const staticPath = url.pathname === "/" ? "/index.html" : url.pathname;
-    const relativePath = staticPath.startsWith("/") ? staticPath.slice(1) : staticPath;
-    const fullPath = resolve(DIST_DIR, relativePath);
-    if (existsSync(fullPath)) {
+    if (resolveStaticPath(staticPath)) {
       serveStatic(response, staticPath);
       return;
     }
@@ -166,7 +157,10 @@ async function main() {
     botToken,
   );
 
-  if (!auth.ok) {
+  // Анонимные запросы пропускаем к обработчику — отдельные служебные маршруты
+  // сами решают, допустим ли анонимный доступ (например, уведомления требуют
+  // служебный токен и вернут 403). Всё остальное получит 401 внутри обработчика.
+  if (!auth.ok && !auth.anonymous) {
     writeJson(response, 401, { ok: false, error: auth.reason });
     return;
   }
@@ -178,7 +172,9 @@ async function main() {
     body,
     context: {
       requestId: crypto.randomUUID(),
-      userId: auth.userId,
+      userId: auth.ok ? auth.userId : undefined,
+      service: auth.ok ? (auth.service ?? false) : false,
+      telegramUser: auth.ok ? auth.telegramUser : undefined,
     },
   };
 

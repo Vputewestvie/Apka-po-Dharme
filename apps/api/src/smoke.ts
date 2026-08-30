@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { createApp } from "./main";
 import type { ApiRequest } from "./types";
 
@@ -11,7 +11,13 @@ function ensureDataDir() {
   if (!existsSync(dataDir)) {
     mkdirSync(dataDir, { recursive: true });
   }
-  return resolve(dataDir, "smoke-test.sqlite");
+  const databasePath = resolve(dataDir, "smoke-test.sqlite");
+  // Каждый прогон начинается с чистой базы: иначе повторный запуск падает
+  // на ограничении уникальности (user_id, date) в расписании.
+  for (const suffix of ["", "-wal", "-shm"]) {
+    rmSync(`${databasePath}${suffix}`, { force: true });
+  }
+  return databasePath;
 }
 
 function assertOk(result: unknown, message: string) {

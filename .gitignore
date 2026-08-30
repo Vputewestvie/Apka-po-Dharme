@@ -13,3 +13,7 @@ data/*.sqlite
 !.env.example
 apps/*/dist
 packages/*/dist
+
+# Локальные секреты wrangler
+.dev.vars
+.wrangler/

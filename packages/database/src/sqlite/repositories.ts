@@ -1,7 +1,7 @@
 import { DiaryEntry, MaterialLink, Practice, PracticeSession, Schedule, ScheduledPractice, Statistics } from "../../../domain/src";
-import type { DiaryRepository, MaterialRepository, NotificationRepository, PracticeCompletionRepository, PracticeRepository, ScheduleRepository, StatisticsRepository, TimerRepository, TimerEventType } from "../repositories";
+import type { DiaryRepository, MaterialRepository, NotificationRepository, PracticeCompletionRepository, PracticeRepository, ScheduleRepository, SettingsRepository, StatisticsRepository, TimerRepository, TimerEventType, UserRepository } from "../repositories";
 import type { SQLiteClient } from "../client";
-import type { MaterialLinkRow, NotificationJobRow, PracticeRow, ScheduleRow, ScheduledPracticeRow, StatisticsSnapshotRow } from "../rows";
+import type { MaterialLinkRow, NotificationJobRow, PracticeRow, ScheduleRow, ScheduledPracticeRow, StatisticsSnapshotRow, UserRow, UserSettingsRow } from "../rows";
 
 function practiceToRow(practice: Practice): PracticeRow {
   return {
@@ -38,7 +38,7 @@ function practiceFromRow(row: PracticeRow) {
     },
     "manual",
     row.personal_notes,
-    row.is_archived,
+    Boolean(row.is_archived),
     row.created_at,
     row.updated_at,
   );
@@ -495,6 +495,13 @@ export class SqliteScheduleRepository implements ScheduleRepository {
       );
     }
   }
+
+  async updateItemStatus(itemId: string, status: ScheduledPractice["status"]): Promise<void> {
+    await this.client.execute(
+      "update scheduled_practices set status = ?, updated_at = ? where id = ?",
+      [status, new Date().toISOString(), itemId],
+    );
+  }
 }
 
 export class SqliteTimerRepository implements TimerRepository {
@@ -610,4 +617,95 @@ export class SqlitePracticeCompletionRepository implements PracticeCompletionRep
 
 function cryptoRandomId() {
   return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
+}
+
+export class SqliteUserRepository implements UserRepository {
+  constructor(private readonly client: SQLiteClient) {}
+
+  async getById(id: string): Promise<UserRow | null> {
+    const result = await this.client.query<UserRow>(
+      "select * from users where id = ? limit 1",
+      [id],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async getByTelegramId(telegramId: number): Promise<UserRow | null> {
+    const result = await this.client.query<UserRow>(
+      "select * from users where telegram_id = ? limit 1",
+      [telegramId],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async upsert(user: UserRow): Promise<void> {
+    await this.client.execute(
+      `insert into users (
+        id, telegram_id, username, first_name, last_name, language_code, timezone, created_at, updated_at
+      ) values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      on conflict(id) do update set
+        telegram_id = excluded.telegram_id,
+        username = excluded.username,
+        first_name = excluded.first_name,
+        last_name = excluded.last_name,
+        language_code = excluded.language_code,
+        timezone = excluded.timezone,
+        updated_at = excluded.updated_at`,
+      [
+        user.id,
+        user.telegram_id,
+        user.username,
+        user.first_name,
+        user.last_name,
+        user.language_code,
+        user.timezone,
+        user.created_at,
+        user.updated_at,
+      ],
+    );
+  }
+}
+
+export class SqliteSettingsRepository implements SettingsRepository {
+  constructor(private readonly client: SQLiteClient) {}
+
+  async getByUserId(userId: string): Promise<UserSettingsRow | null> {
+    const result = await this.client.query<UserSettingsRow>(
+      "select * from user_settings where user_id = ? limit 1",
+      [userId],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  async upsert(settings: UserSettingsRow): Promise<void> {
+    // SQLite/D1 не имеют логического типа — храним булевы флаги как 0/1.
+    await this.client.execute(
+      `insert into user_settings (
+        id, user_id, theme, ai_enabled, ai_provider, notification_enabled,
+        morning_notification_time, day_notification_time, evening_notification_time, created_at, updated_at
+      ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      on conflict(user_id) do update set
+        theme = excluded.theme,
+        ai_enabled = excluded.ai_enabled,
+        ai_provider = excluded.ai_provider,
+        notification_enabled = excluded.notification_enabled,
+        morning_notification_time = excluded.morning_notification_time,
+        day_notification_time = excluded.day_notification_time,
+        evening_notification_time = excluded.evening_notification_time,
+        updated_at = excluded.updated_at`,
+      [
+        settings.id,
+        settings.user_id,
+        settings.theme,
+        settings.ai_enabled ? 1 : 0,
+        settings.ai_provider,
+        settings.notification_enabled ? 1 : 0,
+        settings.morning_notification_time,
+        settings.day_notification_time,
+        settings.evening_notification_time,
+        settings.created_at,
+        settings.updated_at,
+      ],
+    );
+  }
 }

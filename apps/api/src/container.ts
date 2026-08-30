@@ -3,7 +3,8 @@ import { MockAiProvider } from "../../../packages/ai-adapter/src/mock-provider";
 import { OpenAiCompatibleProvider } from "../../../packages/ai-adapter/src/openai-compatible-provider";
 import { FallbackAiProvider } from "../../../packages/ai-adapter/src/fallback-ai-provider";
 import type { AiProvider } from "../../../packages/ai-adapter/src/provider";
-import { applyMigrations, loadInitMigration, openSqliteDatabase, SqliteClientAdapter, SqliteDiaryRepository, SqliteMaterialRepository, SqliteNotificationRepository, SqlitePracticeCompletionRepository, SqlitePracticeRepository, SqliteScheduleRepository, SqliteStatisticsRepository, SqliteTimerRepository } from "../../../packages/database/src";
+import type { SQLiteClient } from "../../../packages/database/src/client";
+import { applyMigrations, loadInitMigration, openSqliteDatabase, SqliteClientAdapter, SqliteDiaryRepository, SqliteMaterialRepository, SqliteNotificationRepository, SqlitePracticeCompletionRepository, SqlitePracticeRepository, SqliteScheduleRepository, SqliteSettingsRepository, SqliteStatisticsRepository, SqliteTimerRepository, SqliteUserRepository } from "../../../packages/database/src";
 import { AiService } from "./modules/ai";
 import { DiaryService } from "./modules/diary";
 import { NotificationService } from "./modules/notifications";
@@ -12,12 +13,29 @@ import { ScheduleService } from "./modules/schedule";
 import { ScheduleAiService } from "./modules/schedule";
 import { StatisticsService } from "./modules/statistics";
 import { TimerService } from "./modules/timer";
+import { UserService } from "./modules/users/service";
 
-export async function createApiContainer(databasePath: string) {
-  const database = await openSqliteDatabase(databasePath);
-  applyMigrations(database, loadInitMigration());
+/**
+ * Сборка контейнера зависимостей.
+ *
+ * Клиент можно передать готовым — так делает Workers: там база D1 приходит
+ * через биндинг, а миграции применяются заранее через `wrangler d1 migrations
+ * apply` (в изоляте их гонять нельзя: он поднимается на каждый холодный старт).
+ * Если клиент не передан — открываем локальный файл и накатываем миграции сами.
+ */
+export async function createApiContainer(
+  databasePathOrClient: string | SQLiteClient = "./data/app.sqlite",
+) {
+  let client: SQLiteClient;
 
-  const client = new SqliteClientAdapter(database);
+  if (typeof databasePathOrClient === "string") {
+    const database = await openSqliteDatabase(databasePathOrClient);
+    applyMigrations(database, loadInitMigration());
+    client = new SqliteClientAdapter(database);
+  } else {
+    client = databasePathOrClient;
+  }
+
   const practiceRepository = new SqlitePracticeRepository(client);
   const materialRepository = new SqliteMaterialRepository(client);
   const diaryRepository = new SqliteDiaryRepository(client);
@@ -26,6 +44,8 @@ export async function createApiContainer(databasePath: string) {
   const statisticsRepository = new SqliteStatisticsRepository(client);
   const timerRepository = new SqliteTimerRepository(client);
   const completionRepository = new SqlitePracticeCompletionRepository(client);
+  const userRepository = new SqliteUserRepository(client);
+  const settingsRepository = new SqliteSettingsRepository(client);
 
   const googleApiKey = process.env.GOOGLE_API_KEY ?? "";
   const googleModel = process.env.GOOGLE_MODEL ?? "";
@@ -67,11 +87,12 @@ export async function createApiContainer(databasePath: string) {
     aiService,
     practiceLibraryService: new PracticeLibraryService(practiceRepository, materialRepository),
     scheduleService,
-    scheduleAiService: new ScheduleAiService(aiService, scheduleService),
-    timerService: new TimerService(timerRepository, completionRepository),
+    scheduleAiService: new ScheduleAiService(aiService, scheduleService, practiceRepository),
+    timerService: new TimerService(timerRepository, completionRepository, practiceRepository, scheduleRepository),
     diaryService: new DiaryService(diaryRepository),
     statisticsService: new StatisticsService(statisticsRepository),
     notificationService: new NotificationService(notificationRepository),
+    userService: new UserService(userRepository, settingsRepository),
   };
 }
 

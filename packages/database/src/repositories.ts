@@ -1,4 +1,4 @@
-import type { DiaryEntry, MaterialLink, Practice, PracticeSession, Schedule, Statistics } from "../../domain/src";
+import type { DiaryEntry, MaterialLink, Practice, PracticeSession, Schedule, SessionStatus, Statistics } from "../../domain/src";
 import type { DiaryEntryRow, MaterialLinkRow, NotificationJobRow, PracticeCompletionRow, ScheduleRow, UserRow, UserSettingsRow } from "./rows";
 
 export interface UserRepository {
@@ -21,6 +21,8 @@ export interface PracticeRepository {
 export interface ScheduleRepository {
   getByUserIdAndDate(userId: string, date: string): Promise<Schedule | null>;
   upsert(schedule: Schedule): Promise<void>;
+  /** Меняет статус одного пункта расписания (например, completed после таймера). */
+  updateItemStatus(itemId: string, status: SessionStatus): Promise<void>;
 }
 
 export interface PracticeCompletionRepository {

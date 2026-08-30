@@ -1,0 +1,52 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "dharma-diary",
+  "main": "apps/api/src/worker.ts",
+  "compatibility_date": "2026-08-29",
+
+  // Нужен для node:crypto (createHmac, timingSafeEqual) в модуле авторизации
+  // и для process.env, откуда контейнер читает ключи ИИ.
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Собранная мини-апка. Отдаётся биндингом ASSETS — отдельного хранилища
+  // или CDN не нужно, лежит рядом с самим воркером.
+  "assets": {
+    "directory": "apps/mini-app/dist",
+    "not_found_handling": "single-page-application",
+    // Без binding воркер не может вызывать env.ASSETS.fetch: все пути вне
+    // API и статики падали 500 (Cloudflare error 1101).
+    "binding": "ASSETS"
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "dharma-diary",
+      // database_id появляется после `npx wrangler d1 create dharma-diary` —
+      // подставьте его сюда, иначе деплой упадёт.
+      // Локальная разработка работает и с заглушкой.
+      "database_id": "f5ac581d-5219-4d12-9964-761c46abf1e9"
+    }
+  ],
+
+  // Доставка отложенных уведомлений. В Node-версии этим занимался
+  // бесконечный цикл бота; в Workers постоянно живущего процесса нет.
+  "triggers": {
+    "crons": ["* * * * *"]
+  },
+
+  "vars": {
+    "MINI_APP_URL": "https://dharma-diary.vputewestvie.workers.dev"
+  },
+
+  // Секреты задаются отдельно, их здесь быть не должно:
+  //   npx wrangler secret put TELEGRAM_BOT_TOKEN
+  //   npx wrangler secret put INTERNAL_API_TOKEN
+  //   npx wrangler secret put TELEGRAM_WEBHOOK_SECRET
+  //   npx wrangler secret put OPENROUTER_API_KEY
+  //   npx wrangler secret put OPENROUTER_MODEL
+
+  "observability": {
+    "enabled": true
+  }
+}

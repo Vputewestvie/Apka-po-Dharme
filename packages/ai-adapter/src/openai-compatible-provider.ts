@@ -1,6 +1,6 @@
 import type { AiProvider } from "./provider";
 import type { AiTextRequest, AiVoiceRequest, ParsedScheduleCommand } from "./types";
-import { parseJsonCommand } from "./parse-json-command";
+import { parseJsonCommand, todayIsoDate } from "./parse-json-command";
 
 export type OpenAiCompatibleConfig = {
   baseUrl: string;
@@ -35,7 +35,9 @@ The output object must use this schema:
   ],
   "rawText": "original text"
 }
-If the command contains relative date words like сегодня, завтра, послезавтра, вчера, next week, or tomorrow, convert them to the actual date in YYYY-MM-DD format.
+Today's actual date is ${todayIsoDate()}. Always use it as the reference point: never invent another year or date.
+If the command contains relative date words like сегодня, завтра, послезавтра, вчера, next week, or tomorrow, convert them to the actual date in YYYY-MM-DD format relative to today's date above.
+If the command mentions no date at all, use today's date (${todayIsoDate()}).
 If you cannot parse the command, return a JSON object with "intent":"unknown", "date":null, "items":[], "rawText":"original text".
 Parse this Russian schedule command exactly:
 ${request.text}`;

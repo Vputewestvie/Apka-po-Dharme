@@ -157,6 +157,17 @@ function parseRelativeDate(value: string) {
   return null;
 }
 
+/**
+ * Сегодняшняя дата в формате YYYY-MM-DD.
+ *
+ * Модель не знает текущую дату. Без явной подсказки в промпте она её выдумывает
+ * (наблюдалось: вместо реальной даты вернулось 2025-04-05), и расписание уезжало
+ * в прошлое. Промпт обязан содержать фактическую дату.
+ */
+export function todayIsoDate(): string {
+  return toIsoDate(new Date());
+}
+
 function toIsoDate(date: Date) {
   return date.toISOString().slice(0, 10);
 }

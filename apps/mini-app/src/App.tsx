@@ -13,7 +13,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   addTimerTime,
-  autoCompleteTimer,
+  completeTimer,
   completeScheduledPractice,
   createDiaryEntry,
   createPractice,
@@ -94,6 +94,7 @@ export function App() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [timerBusy, setTimerBusy] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [timerOverlayOpen, setTimerOverlayOpen] = useState(false);
   const [sessionOverrides, setSessionOverrides] = useState<Record<string, string>>({});
   const [activeTimer, setActiveTimer] = useState<{
@@ -103,6 +104,28 @@ export function App() {
     status: "running" | "paused";
   } | null>(null);
   const intervalRef = useRef<number | null>(null);
+
+  function describeError(error: unknown) {
+    if (error instanceof Error) return error.message;
+    return String(error);
+  }
+
+  /**
+   * Единая обёртка пользовательских действий: показывает busy, сбрасывает его
+   * даже при ошибке и выводит баннер — раньше ошибка запроса проглатывалась
+   * молча, и кнопка просто «не работала» без каких-либо объяснений.
+   */
+  async function runBusy(key: string, action: () => Promise<void>) {
+    setBusy(key);
+    setActionError(null);
+    try {
+      await action();
+    } catch (error) {
+      setActionError(describeError(error));
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function refreshDashboard(nextOverrides = sessionOverrides) {
     const data = await loadDashboardData();
@@ -164,83 +187,81 @@ export function App() {
   }) {
     if (!dashboard) return;
 
-    setBusy("practice");
-    await createPractice({
-      userId: dashboard.userId,
-      ...input,
+    await runBusy("practice", async () => {
+      await createPractice({
+        userId: dashboard.userId,
+        ...input,
+      });
+      await refreshDashboard();
+      setScreen("library");
     });
-    await refreshDashboard();
-    setBusy(null);
-    setScreen("library");
   }
 
   async function handleSaveSchedule(practiceIds: string[], title: string) {
     if (!dashboard) return;
 
-    setBusy("schedule");
-    await saveSchedule({
-      userId: dashboard.userId,
-      date: dashboard.date,
-      title,
-      practiceIds,
-      practices: dashboard.practices,
-      hasExistingSchedule: Boolean(dashboard.schedule),
+    await runBusy("schedule", async () => {
+      await saveSchedule({
+        userId: dashboard.userId,
+        date: dashboard.date,
+        title,
+        practiceIds,
+        practices: dashboard.practices,
+        hasExistingSchedule: Boolean(dashboard.schedule),
+      });
+      await refreshDashboard();
     });
-    await refreshDashboard();
-    setBusy(null);
   }
 
   async function handleRepeatYesterday() {
     if (!dashboard) return;
 
-    setBusy("repeat");
     const currentDate = new Date(`${dashboard.date}T00:00:00`);
     currentDate.setDate(currentDate.getDate() - 1);
 
-    await repeatYesterday({
-      userId: dashboard.userId,
-      date: dashboard.date,
-      title: "Повтор вчерашнего дня",
-      previousDate: currentDate.toISOString().slice(0, 10),
+    await runBusy("repeat", async () => {
+      await repeatYesterday({
+        userId: dashboard.userId,
+        date: dashboard.date,
+        title: "Повтор вчерашнего дня",
+        previousDate: currentDate.toISOString().slice(0, 10),
+      });
+      await refreshDashboard();
     });
-    await refreshDashboard();
-    setBusy(null);
   }
 
   async function handleCompletePractice(item: ScheduledPracticeDto) {
     if (!dashboard) return;
 
     const nextOverrides = { ...sessionOverrides, [item.id]: "completed" };
-    setBusy(item.id);
     setSessionOverrides(nextOverrides);
 
-    await completeScheduledPractice({
-      userId: dashboard.userId,
-      scheduledPracticeId: item.id,
-      practiceId: item.practiceId,
-      plannedDurationMinutes: item.plannedDurationMinutes,
+    await runBusy(item.id, async () => {
+      await completeScheduledPractice({
+        userId: dashboard.userId,
+        scheduledPracticeId: item.id,
+        practiceId: item.practiceId,
+        plannedDurationMinutes: item.plannedDurationMinutes,
+      });
+      await refreshDashboard(nextOverrides);
     });
-
-    await refreshDashboard(nextOverrides);
-    setBusy(null);
   }
 
   async function handleSkipPractice(item: ScheduledPracticeDto) {
     if (!dashboard) return;
 
     const nextOverrides = { ...sessionOverrides, [item.id]: "skipped" };
-    setBusy(`skip:${item.id}`);
     setSessionOverrides(nextOverrides);
 
-    await skipScheduledPractice({
-      userId: dashboard.userId,
-      scheduledPracticeId: item.id,
-      practiceId: item.practiceId,
-      plannedDurationMinutes: item.plannedDurationMinutes,
+    await runBusy(`skip:${item.id}`, async () => {
+      await skipScheduledPractice({
+        userId: dashboard.userId,
+        scheduledPracticeId: item.id,
+        practiceId: item.practiceId,
+        plannedDurationMinutes: item.plannedDurationMinutes,
+      });
+      await refreshDashboard(nextOverrides);
     });
-
-    await refreshDashboard(nextOverrides);
-    setBusy(null);
   }
 
   async function handleCreateDiary(input: {
@@ -250,13 +271,13 @@ export function App() {
   }) {
     if (!dashboard) return;
 
-    setBusy("diary");
-    await createDiaryEntry({
-      userId: dashboard.userId,
-      ...input,
+    await runBusy("diary", async () => {
+      await createDiaryEntry({
+        userId: dashboard.userId,
+        ...input,
+      });
+      await refreshDashboard();
     });
-    await refreshDashboard();
-    setBusy(null);
   }
 
   async function handleStartPractice(item: ScheduledPracticeDto) {
@@ -280,6 +301,8 @@ export function App() {
         status: "running",
       });
       setTimerOverlayOpen(true);
+    } catch (error) {
+      setActionError(describeError(error));
     } finally {
       setTimerBusy(null);
     }
@@ -296,6 +319,8 @@ export function App() {
         practiceId: activeTimer.item.practiceId,
       });
       setActiveTimer({ ...activeTimer, status: "paused" });
+    } catch (error) {
+      setActionError(describeError(error));
     } finally {
       setTimerBusy(null);
     }
@@ -312,6 +337,8 @@ export function App() {
         practiceId: activeTimer.item.practiceId,
       });
       setActiveTimer({ ...activeTimer, status: "running" });
+    } catch (error) {
+      setActionError(describeError(error));
     } finally {
       setTimerBusy(null);
     }
@@ -329,6 +356,8 @@ export function App() {
         minutes,
       });
       setActiveTimer({ ...activeTimer, remainingSeconds: activeTimer.remainingSeconds + minutes * 60 });
+    } catch (error) {
+      setActionError(describeError(error));
     } finally {
       setTimerBusy(null);
     }
@@ -339,7 +368,7 @@ export function App() {
 
     setTimerBusy(`complete:${activeTimer.item.id}`);
     try {
-      await autoCompleteTimer({
+      await completeTimer({
         userId: dashboard.userId,
         scheduledPracticeId: activeTimer.item.id,
         practiceId: activeTimer.item.practiceId,
@@ -347,6 +376,8 @@ export function App() {
       const nextOverrides = { ...sessionOverrides, [activeTimer.item.id]: "completed" };
       setActiveTimer(null);
       await refreshDashboard(nextOverrides);
+    } catch (error) {
+      setActionError(describeError(error));
     } finally {
       setTimerBusy(null);
     }
@@ -366,6 +397,8 @@ export function App() {
       });
       setActiveTimer(null);
       await refreshDashboard(nextOverrides);
+    } catch (error) {
+      setActionError(describeError(error));
     } finally {
       setTimerBusy(null);
     }
@@ -404,6 +437,15 @@ export function App() {
           </div>
         </div>
       </header>
+
+      {actionError ? (
+        <div className="action-error" role="alert">
+          <span>Не получилось: {actionError}</span>
+          <button type="button" onClick={() => setActionError(null)} aria-label="Закрыть ошибку">
+            ×
+          </button>
+        </div>
+      ) : null}
 
       <main className="content">
         {loading || !dashboard ? (

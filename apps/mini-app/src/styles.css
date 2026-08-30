@@ -1031,6 +1031,164 @@ a {
   flex-shrink: 0;
 }
 
+/* --- Sound Bath: фоновые поющие чаши --- */
+.soundbath {
+  display: grid;
+  gap: 10px;
+}
+
+.soundbath-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.soundbath-toggle {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--surface-hover);
+  color: var(--muted);
+  border-radius: var(--radius-full);
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+  flex-shrink: 0;
+}
+
+.soundbath-toggle:hover {
+  border-color: var(--border-strong);
+  color: var(--text-secondary);
+}
+
+.soundbath-toggle.is-on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  box-shadow: var(--shadow-glow);
+}
+
+.soundbath-track-btn {
+  appearance: none;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  height: 36px;
+  border: 1px solid var(--border);
+  background: var(--surface-hover);
+  color: var(--text);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.soundbath-track-btn:hover {
+  border-color: var(--border-strong);
+  background: var(--surface);
+}
+
+.soundbath-track-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.soundbath-vol {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.soundbath-vol input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 88px;
+  height: 4px;
+  border-radius: var(--radius-full);
+  background: var(--accent-soft);
+  outline: none;
+  cursor: pointer;
+}
+
+.soundbath-vol input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: var(--shadow-sm);
+}
+
+.soundbath-vol input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.soundbath-picker {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  animation: card-pop var(--duration-fast) var(--ease-out);
+}
+
+.soundbath-option {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.soundbath-option:hover {
+  background: var(--accent-soft);
+}
+
+.soundbath-option.is-active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.soundbath-option .soundbath-note {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.soundbath-attrib {
+  margin: 2px 4px 0;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
 /* --- Settings (переключатель темы) --- */
 .settings-section {
   display: grid;
@@ -1235,4 +1393,34 @@ a {
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
   border-radius: var(--radius-md);
+}
+
+/* --- Баннер ошибки действия --- */
+.action-error {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--radius-lg, 14px);
+  background: var(--warning-soft, rgba(255, 176, 32, 0.16));
+  color: var(--warning, #ffb020);
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.action-error button {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 18px;
+  line-height: 1;
+  padding: 2px 6px;
+  cursor: pointer;
 }

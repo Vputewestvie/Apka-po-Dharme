@@ -1,6 +1,7 @@
 import { getAllowedMaterialDomains, MaterialLink, Practice } from "../../../../../packages/domain/src";
 import type { MaterialRepository, PracticeRepository } from "../../../../../packages/database/src";
 import { createId } from "../../id";
+import { ForbiddenError, NotFoundError, ValidationError } from "../../validation";
 import type { MaterialInput, PracticeInput, PracticeUpdateInput } from "./dto";
 
 export class PracticeLibraryService {
@@ -11,6 +12,17 @@ export class PracticeLibraryService {
 
   list(userId: string) {
     return this.practiceRepository.listByUserId(userId);
+  }
+
+  /**
+   * Находит практику и проверяет, что она принадлежит указанному пользователю.
+   * Это ключевая защита от обращения к чужим данным по известному идентификатору.
+   */
+  private async requireOwned(practiceId: string, userId: string): Promise<Practice> {
+    const practice = await this.practiceRepository.getById(practiceId);
+    if (!practice) throw new NotFoundError("Practice not found");
+    if (practice.userId !== userId) throw new ForbiddenError("Practice belongs to another user");
+    return practice;
   }
 
   async create(input: PracticeInput) {
@@ -31,9 +43,8 @@ export class PracticeLibraryService {
     return practice;
   }
 
-  async update(input: PracticeUpdateInput) {
-    const existing = await this.practiceRepository.getById(input.practiceId);
-    if (!existing) throw new Error("Practice not found");
+  async update(input: PracticeUpdateInput, userId: string) {
+    const existing = await this.requireOwned(input.practiceId, userId);
     existing.updateDetails({
       description: input.description,
       category: input.category,
@@ -48,25 +59,26 @@ export class PracticeLibraryService {
     return existing;
   }
 
-  async archive(practiceId: string) {
-    const existing = await this.practiceRepository.getById(practiceId);
-    if (!existing) throw new Error("Practice not found");
+  async archive(practiceId: string, userId: string) {
+    const existing = await this.requireOwned(practiceId, userId);
     existing.archive();
     await this.practiceRepository.upsert(existing);
     return existing;
   }
 
-  async restore(practiceId: string) {
-    const existing = await this.practiceRepository.getById(practiceId);
-    if (!existing) throw new Error("Practice not found");
+  async restore(practiceId: string, userId: string) {
+    const existing = await this.requireOwned(practiceId, userId);
     existing.restore();
     await this.practiceRepository.upsert(existing);
     return existing;
   }
 
-  async addMaterial(input: MaterialInput) {
+  async addMaterial(input: MaterialInput, userId: string) {
+    // Сначала авторизация, потом валидация: иначе чужой пользователь получал бы
+    // 400 про домен вместо честного 403 «чужая практика».
+    await this.requireOwned(input.practiceId, userId);
     if (!getAllowedMaterialDomains().includes(input.sourceDomain)) {
-      throw new Error("Material source domain is not allowed");
+      throw new ValidationError("Material source domain is not allowed");
     }
     const material = new MaterialLink(
       createId(),

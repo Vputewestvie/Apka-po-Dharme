@@ -35,9 +35,15 @@ function getAuthHeaders(): Record<string, string> {
 
   // Telegram Mini App init data
   try {
-    const tg = (window as unknown as Record<string, unknown>).TelegramWebviewProxy
-      ?? (window as unknown as Record<string, unknown>).Telegram;
-    const initData = (tg as Record<string, unknown>)?.initData as string | undefined;
+    // Официальный telegram-web-app.js кладёт данные в Telegram.WebApp.initData.
+    // TelegramWebviewProxy — это внутренний мост вебвью без initData: раньше
+    // цепочка начиналась с него, и в настоящем Telegram приложение уходило
+    // без заголовка авторизации (сервер отвечал 401).
+    const tg = (window as unknown as Record<string, unknown>).Telegram as
+      | (Record<string, unknown> & { WebApp?: Record<string, unknown> })
+      | undefined;
+    const initData =
+      (tg?.WebApp?.initData as string | undefined) ?? (tg?.initData as string | undefined);
     if (initData) {
       return { "x-telegram-init-data": initData };
     }
@@ -84,9 +90,22 @@ async function write<T>(
   });
 }
 
+/**
+ * Сегодняшняя дата в формате YYYY-MM-DD в локальном часовом поясе устройства.
+ *
+ * Раньше дашборд по умолчанию брал дату из fallbackDashboardData
+ * («2026-07-11»), и расписание запрашивалось на прошлогодний день — счётчик
+ * «5 практик» показывал библиотеку, а карточки дня были пустыми.
+ */
+export function todayIso(): string {
+  const now = new Date();
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 10);
+}
+
 export async function loadDashboardData(
   userId = fallbackDashboardData.userId,
-  date = fallbackDashboardData.date,
+  date = todayIso(),
 ): Promise<DashboardData> {
   try {
     const [practices, schedule, diary, statistics] = await Promise.all([
@@ -293,7 +312,10 @@ export async function autoCompleteTimer(input: {
   scheduledPracticeId: string;
   practiceId: string;
 }) {
-  return write("/timer/auto-complete", "POST", input);
+  return write("/timer/auto-complete", "POST", {
+    ...input,
+    timestamp: new Date().toISOString(),
+  });
 }
 
 export function createDiaryEntry(input: {
