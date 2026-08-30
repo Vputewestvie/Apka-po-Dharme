@@ -1,6 +1,5 @@
 import { Clock3, Pause, Play, Plus, SkipForward, Square, X } from "lucide-react";
 import type { PracticeDto } from "../types";
-import { SoundBathPlayer } from "./SoundBathPlayer";
 
 type TimerOverlayProps = {
   practice: PracticeDto;
@@ -68,8 +67,6 @@ export function TimerOverlay(props: TimerOverlayProps) {
             )}
           </span>
         </div>
-
-        <SoundBathPlayer />
 
         <div className="timer-actions">
           {props.status === "running" ? (

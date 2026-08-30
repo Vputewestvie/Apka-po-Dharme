@@ -16,6 +16,8 @@ export interface PracticeRepository {
   listByUserId(userId: string): Promise<Practice[]>;
   getById(id: string): Promise<Practice | null>;
   upsert(practice: Practice): Promise<void>;
+  /** Удаляет практику по идентификатору. Связанные записи чистит каскад на уровне БД. */
+  delete(id: string): Promise<void>;
 }
 
 export interface ScheduleRepository {

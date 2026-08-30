@@ -21,8 +21,16 @@ function loadPrefs(): Prefs {
   }
 }
 
+/**
+ * Плавающий музыкальный плеер («звук поющих чаш»).
+ *
+ * Монтируется один раз на уровне App — доступен с любой вкладки и не глохнет
+ * при переключении экранов. Изначально плеер жил только внутри оверлея таймера,
+ * и найти музыку в приложении было невозможно.
+ */
 export function SoundBathPlayer() {
   const initial = loadPrefs();
+  const [open, setOpen] = useState(false);
   const [enabled, setEnabled] = useState(initial.enabled);
   const [volume, setVolume] = useState(initial.volume);
   const [trackIndex, setTrackIndex] = useState(initial.trackIndex);
@@ -58,60 +66,75 @@ export function SoundBathPlayer() {
   };
 
   return (
-    <div className="soundbath">
-      <div className="soundbath-row">
-        <button
-          type="button"
-          className={`soundbath-toggle${enabled ? " is-on" : ""}`}
-          onClick={() => setEnabled((v) => !v)}
-          aria-pressed={enabled}
-          aria-label={enabled ? "Выключить музыку" : "Включить музыку"}
-        >
-          <Power size={16} />
-        </button>
-
-        <button
-          type="button"
-          className="soundbath-track-btn"
-          onClick={() => setPickerOpen((v) => !v)}
-          aria-expanded={pickerOpen}
-        >
-          <Music size={16} />
-          <span className="soundbath-track-name">{track.title}</span>
-          <ListMusic size={14} style={{ opacity: 0.55 }} />
-        </button>
-
-        <div className="soundbath-vol" title="Громкость">
-          {enabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.01}
-            value={volume}
-            onChange={(e) => setVolume(Number(e.target.value))}
-            aria-label="Громкость музыки"
-          />
-        </div>
-      </div>
-
-      {pickerOpen && (
-        <div className="soundbath-picker">
-          {SOUND_TRACKS.map((t, i) => (
+    <div className="soundbath-fab">
+      {open ? (
+        <div className="soundbath-panel">
+          <div className="soundbath-row">
             <button
-              key={t.id}
               type="button"
-              className={`soundbath-option${i === trackIndex ? " is-active" : ""}`}
-              onClick={() => selectTrack(i)}
+              className={`soundbath-toggle${enabled ? " is-on" : ""}`}
+              onClick={() => setEnabled((v) => !v)}
+              aria-pressed={enabled}
+              aria-label={enabled ? "Выключить музыку" : "Включить музыку"}
             >
-              <span className="soundbath-option-title">{t.title}</span>
-              <span className="soundbath-note">{t.note}</span>
-              {i === trackIndex && <Check size={14} />}
+              <Power size={16} />
             </button>
-          ))}
-          <p className="soundbath-attrib">{SOUND_ATTRIBUTION}</p>
+
+            <button
+              type="button"
+              className="soundbath-track-btn"
+              onClick={() => setPickerOpen((v) => !v)}
+              aria-expanded={pickerOpen}
+            >
+              <Music size={16} />
+              <span className="soundbath-track-name">{track.title}</span>
+              <ListMusic size={14} style={{ opacity: 0.55 }} />
+            </button>
+
+            <div className="soundbath-vol" title="Громкость">
+              {enabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={volume}
+                onChange={(e) => setVolume(Number(e.target.value))}
+                aria-label="Громкость музыки"
+              />
+            </div>
+          </div>
+
+          {pickerOpen && (
+            <div className="soundbath-picker">
+              {SOUND_TRACKS.map((t, i) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  className={`soundbath-option${i === trackIndex ? " is-active" : ""}`}
+                  onClick={() => selectTrack(i)}
+                >
+                  <span className="soundbath-option-title">{t.title}</span>
+                  <span className="soundbath-note">{t.note}</span>
+                  {i === trackIndex && <Check size={14} />}
+                </button>
+              ))}
+              <p className="soundbath-attrib">{SOUND_ATTRIBUTION}</p>
+            </div>
+          )}
         </div>
-      )}
+      ) : null}
+
+      <button
+        type="button"
+        className={`soundbath-fab-btn${enabled ? " is-on" : ""}`}
+        aria-expanded={open}
+        aria-label="Музыка: поющие чаши"
+        title="Музыка: поющие чаши"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <Music size={20} />
+      </button>
 
       <audio ref={audioRef} src={src} loop preload="auto" />
     </div>

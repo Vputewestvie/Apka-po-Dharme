@@ -151,6 +151,15 @@ const routeDefinitions: RouteDefinition[] = [
       return ok(toJson(await container.practiceLibraryService.restore(practiceId, userId)));
     },
   },
+  {
+    method: "DELETE",
+    pathname: "/practices",
+    handler: async (request, container) => {
+      const userId = requiredUserId(request);
+      const { practiceId } = validateWith(practiceIdSchema, request.body);
+      return ok(toJson(await container.practiceLibraryService.delete(practiceId, userId)));
+    },
+  },
 
   // --- Materials ---
   {

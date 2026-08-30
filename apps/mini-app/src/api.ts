@@ -78,7 +78,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 async function write<T>(
   path: string,
-  method: "POST" | "PUT" | "PATCH",
+  method: "POST" | "PUT" | "PATCH" | "DELETE",
   body: Record<string, unknown>,
 ) {
   return request<T>(path, {
@@ -165,6 +165,30 @@ export function createPractice(input: {
       ref: pickImageByCategory(input.category),
     },
     notes: "",
+  });
+}
+
+/** Полное удаление практики (вместе со связанными записями — каскад на сервере). */
+export function deletePractice(input: { userId: string; practiceId: string }) {
+  return write<{ deleted: boolean }>("/practices", "DELETE", {
+    userId: input.userId,
+    practiceId: input.practiceId,
+  });
+}
+
+/**
+ * Генерация расписания дня через AI: пользователь описывает желаемый день
+ * текстом, сервер разбирает описание и создаёт план из практик библиотеки.
+ */
+export function generateAiSchedule(input: {
+  userId: string;
+  text: string;
+  practiceNameToId: Record<string, string>;
+}) {
+  return write<ScheduleDto>("/schedule/ai/text", "POST", {
+    userId: input.userId,
+    text: input.text,
+    practiceNameToId: input.practiceNameToId,
   });
 }
 

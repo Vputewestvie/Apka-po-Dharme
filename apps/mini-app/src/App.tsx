@@ -9,6 +9,7 @@ import {
   Settings2,
   Sparkles,
   Sun,
+  Trash2,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -17,6 +18,8 @@ import {
   completeScheduledPractice,
   createDiaryEntry,
   createPractice,
+  deletePractice,
+  generateAiSchedule,
   loadDashboardData,
   pauseTimer,
   repeatYesterday,
@@ -25,6 +28,7 @@ import {
   skipScheduledPractice,
   startTimer,
 } from "./api";
+import { SoundBathPlayer } from "./components/SoundBathPlayer";
 import { TimerOverlay } from "./components/TimerOverlay";
 import type {
   DashboardData,
@@ -76,6 +80,8 @@ type ScreenActions = {
     category: string;
     defaultDurationMinutes: number;
   }) => Promise<void>;
+  onDeletePractice: (practiceId: string) => Promise<void>;
+  onGenerateAiSchedule: (text: string) => Promise<void>;
   onOpenDiary: () => void;
   onRepeatYesterday: () => Promise<void>;
   onSaveSchedule: (practiceIds: string[], title: string) => Promise<void>;
@@ -194,6 +200,33 @@ export function App() {
       });
       await refreshDashboard();
       setScreen("library");
+    });
+  }
+
+  async function handleDeletePractice(practiceId: string) {
+    if (!dashboard) return;
+
+    await runBusy(`delete:${practiceId}`, async () => {
+      await deletePractice({
+        userId: dashboard.userId,
+        practiceId,
+      });
+      await refreshDashboard();
+    });
+  }
+
+  async function handleGenerateAiSchedule(text: string) {
+    if (!dashboard) return;
+
+    await runBusy("ai", async () => {
+      await generateAiSchedule({
+        userId: dashboard.userId,
+        text,
+        practiceNameToId: Object.fromEntries(
+          dashboard.practices.map((practice) => [practice.title, practice.id]),
+        ),
+      });
+      await refreshDashboard();
     });
   }
 
@@ -462,6 +495,8 @@ export function App() {
             onCompletePractice: handleCompletePractice,
             onCreateDiary: handleCreateDiary,
             onCreatePractice: handleCreatePractice,
+            onDeletePractice: handleDeletePractice,
+            onGenerateAiSchedule: handleGenerateAiSchedule,
             onOpenDiary() {
               setScreen("diary");
             },
@@ -522,6 +557,10 @@ export function App() {
           );
         })}
       </nav>
+
+      {/* Музыкальный плеер живёт на уровне App: одна копия на все вкладки
+          и не глохнет при переключении экранов или открытии таймера. */}
+      <SoundBathPlayer />
     </div>
   );
 }
@@ -539,6 +578,7 @@ function renderScreen(
           busy={actions.busy}
           dashboard={dashboard}
           onCompletePractice={actions.onCompletePractice}
+          onGenerateAiSchedule={actions.onGenerateAiSchedule}
           onOpenDiary={actions.onOpenDiary}
           onSkipPractice={actions.onSkipPractice}
           onStartPractice={actions.onStartPractice}
@@ -553,6 +593,8 @@ function renderScreen(
           busy={actions.busy === "practice"}
           practices={dashboard.practices}
           onCreatePractice={actions.onCreatePractice}
+          onDeletePractice={actions.onDeletePractice}
+          deleteBusy={actions.busy?.startsWith("delete:") ? actions.busy : null}
         />
       );
     case "schedule":
@@ -588,6 +630,7 @@ function TodayScreen(props: {
   busy: string | null;
   dashboard: DashboardData;
   onCompletePractice: (item: ScheduledPracticeDto) => Promise<void>;
+  onGenerateAiSchedule: (text: string) => Promise<void>;
   onOpenDiary: () => void;
   onSkipPractice: (item: ScheduledPracticeDto) => Promise<void>;
   onStartPractice: (item: ScheduledPracticeDto) => Promise<void>;
@@ -596,6 +639,14 @@ function TodayScreen(props: {
   practiceMap: Map<string, PracticeDto>;
 }) {
   const scheduledItems = props.dashboard.schedule?.items ?? [];
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiText, setAiText] = useState("");
+
+  async function handleGenerate() {
+    const text = aiText.trim();
+    if (!text) return;
+    await props.onGenerateAiSchedule(text);
+  }
 
   return (
     <section className="stack">
@@ -605,15 +656,35 @@ function TodayScreen(props: {
             <span className="eyebrow">Сегодняшний поток</span>
             <h2>Практики дня</h2>
           </div>
-          <button type="button" className="ghost-button">
+          <button
+            type="button"
+            className={aiOpen ? "ghost-button active" : "ghost-button"}
+            aria-expanded={aiOpen}
+            aria-label="Собрать план с помощью AI"
+            title="Собрать план дня с помощью AI"
+            onClick={() => setAiOpen((v) => !v)}
+          >
             <Sparkles size={16} />
           </button>
         </div>
-        <p className="source-note">
-          {props.dashboard.source === "api"
-            ? "Данные загружены из backend API."
-            : "Показан fallback-режим, пока API недоступен."}
-        </p>
+        {aiOpen ? (
+          <div className="ai-composer">
+            <textarea
+              value={aiText}
+              onChange={(event) => setAiText(event.target.value)}
+              placeholder="Опишите желаемый день, например: «утром 15 минут медитации, днём дыхание, вечером чтение»"
+              rows={3}
+            />
+            <button
+              type="button"
+              className="primary-button"
+              disabled={!aiText.trim() || props.busy === "ai"}
+              onClick={() => void handleGenerate()}
+            >
+              {props.busy === "ai" ? "Собираю план..." : "Собрать план дня"}
+            </button>
+          </div>
+        ) : null}
         <div className="practice-list">
           {scheduledItems.map((item) => {
             const practice = props.practiceMap.get(item.practiceId);
@@ -697,11 +768,13 @@ function TodayScreen(props: {
 function LibraryScreen(props: {
   practices: PracticeDto[];
   busy: boolean;
+  deleteBusy: string | null;
   onCreatePractice: (input: {
     title: string;
     category: string;
     defaultDurationMinutes: number;
   }) => Promise<void>;
+  onDeletePractice: (practiceId: string) => Promise<void>;
 }) {
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("Тело");
@@ -764,7 +837,23 @@ function LibraryScreen(props: {
                   {practice.category} · {practice.defaultDurationMinutes} мин
                 </p>
               </div>
-              <span className="tag">{practice.archived ? "Архив" : "Активна"}</span>
+              <div className="row-item-actions">
+                <span className="tag">{practice.archived ? "Архив" : "Активна"}</span>
+                <button
+                  type="button"
+                  className="icon-danger-button"
+                  disabled={props.deleteBusy === practice.id}
+                  aria-label={`Удалить практику ${practice.title}`}
+                  title="Удалить практику"
+                  onClick={() => {
+                    if (window.confirm(`Удалить практику «${practice.title}»? Действие необратимо.`)) {
+                      void props.onDeletePractice(practice.id);
+                    }
+                  }}
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
             </div>
           ))}
         </div>

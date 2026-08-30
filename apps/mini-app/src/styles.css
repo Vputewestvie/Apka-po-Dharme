@@ -772,7 +772,7 @@ a {
   max-width: 45%;
   overflow-wrap: anywhere;
   text-align: center;
-  white-space: normal;
+  white-space: nowrap;
   flex-shrink: 0;
 }
 
@@ -1423,4 +1423,115 @@ a {
   line-height: 1;
   padding: 2px 6px;
   cursor: pointer;
+}
+
+/* ============================================
+   Плавающий музыкальный плеер (поющие чаши)
+   ============================================ */
+
+.soundbath-fab {
+  position: fixed;
+  right: max(16px, calc((100% - 480px) / 2 + 16px));
+  bottom: calc(84px + env(safe-area-inset-bottom));
+  z-index: 12;
+  display: grid;
+  justify-items: end;
+  gap: 10px;
+}
+
+.soundbath-fab-btn {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-strong);
+  color: var(--accent);
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(26, 31, 46, 0.16);
+  transition: background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+
+.soundbath-fab-btn:hover {
+  transform: scale(1.05);
+}
+
+.soundbath-fab-btn.is-on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+  box-shadow: 0 6px 24px var(--accent-glow);
+}
+
+.soundbath-panel {
+  width: min(340px, calc(100vw - 32px));
+  padding: 14px;
+  background: var(--surface-strong);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 12px 40px rgba(26, 31, 46, 0.2);
+}
+
+/* ============================================
+   AI-композер плана дня (вкладка «Сегодня»)
+   ============================================ */
+
+.ai-composer {
+  display: grid;
+  gap: 10px;
+  margin: 4px 0 14px;
+  padding: 12px;
+  background: var(--accent-soft);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+}
+
+.ai-composer textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-strong);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  resize: vertical;
+}
+
+/* ============================================
+   Удаление практики (вкладка «Практики»)
+   ============================================ */
+
+.row-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.icon-danger-button {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--danger-soft);
+  border-radius: var(--radius-md);
+  background: var(--danger-soft);
+  color: var(--danger);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.icon-danger-button:hover {
+  background: var(--danger);
+  color: #ffffff;
+}
+
+.ghost-button.active {
+  background: var(--accent-soft);
+  color: var(--accent);
 }

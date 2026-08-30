@@ -73,6 +73,12 @@ export class PracticeLibraryService {
     return existing;
   }
 
+  async delete(practiceId: string, userId: string) {
+    await this.requireOwned(practiceId, userId);
+    await this.practiceRepository.delete(practiceId);
+    return { deleted: true };
+  }
+
   async addMaterial(input: MaterialInput, userId: string) {
     // Сначала авторизация, потом валидация: иначе чужой пользователь получал бы
     // 400 про домен вместо честного 403 «чужая практика».

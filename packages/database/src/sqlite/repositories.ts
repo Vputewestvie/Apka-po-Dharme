@@ -233,6 +233,10 @@ export class SqlitePracticeRepository implements PracticeRepository {
       ],
     );
   }
+
+  async delete(id: string): Promise<void> {
+    await this.client.execute("delete from practices where id = ?", [id]);
+  }
 }
 
 export class SqliteMaterialRepository implements MaterialRepository {
