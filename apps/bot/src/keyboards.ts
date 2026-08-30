@@ -19,7 +19,7 @@ export function mainMenuKeyboard(baseUrl: string) {
     inline_keyboard: [
       [
         webAppButton(baseUrl, "today", "🪷 Практика дня"),
-        webAppButton(baseUrl, "schedule", "☸️ План дня"),
+        webAppButton(baseUrl, "library", "📚 Практики"),
       ],
       [
         callbackButton("japa:0", "📿 Джапа 108"),

@@ -3,6 +3,8 @@ build
 coverage
 .DS_Store
 *.log
+# Рабочая папка: исходники аудио, промежуточные wav, логи прогонов.
+tmp/
 tmp_*
 *.tmp
 .env

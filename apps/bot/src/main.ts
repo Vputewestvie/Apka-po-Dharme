@@ -192,6 +192,15 @@ export function createBotApp(
         await toast("Мала с начала 🌱");
         return;
       }
+      case /^japa:\d+$/.test(data): {
+        // Кнопка из главного меню присылает «japa:0»: открыть счётчик
+        // на этом числе. Раньше такой колбэк ничем не обрабатывался и
+        // уходил в default — казалось, что кнопка «Джапа» не работает.
+        const opened = Math.min(Math.max(Number(data.slice("japa:".length)), 0), 108);
+        await edit(japaText(opened), japaKeyboard(opened));
+        await toast();
+        return;
+      }
       case data === "menu": {
         await edit(welcomeCardText(query.from.first_name), mainMenuKeyboard(config.miniAppUrl));
         await toast();

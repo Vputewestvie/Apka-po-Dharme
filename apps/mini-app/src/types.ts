@@ -2,8 +2,7 @@ export type MiniAppScreen =
   | "today"
   | "library"
   | "diary"
-  | "statistics"
-  | "settings";
+  | "statistics";
 
 export type PracticeImage = {
   kind: "builtin" | "user";

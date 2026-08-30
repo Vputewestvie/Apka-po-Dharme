@@ -12,6 +12,7 @@
  *  - статику отдаётWorkers Assets, а не чтение с диска.
  */
 
+import { createHash, timingSafeEqual } from "node:crypto";
 import { D1Client, type D1DatabaseLike } from "../../../packages/database/src/d1-client";
 import { createBotApp } from "../../bot/src/main";
 import { readBotConfig } from "../../bot/src/config";
@@ -132,18 +133,39 @@ export default {
 };
 
 /**
+ * Сравнение секретов без утечки по времени.
+ *
+ * Прямое `timingSafeEqual` над строками невозможно: оно требует буферов
+ * одинаковой длины, а длина секрета как раз и есть то, что не должно
+ * утекать. Поэтому сравниваем SHA-256 от обеих строк — на выходах фиксированные
+ * 32 байта, и время сравнения не зависит от совпавшего префикса.
+ */
+function secretMatches(provided: string, expected: string): boolean {
+  const a = createHash("sha256").update(provided).digest();
+  const b = createHash("sha256").update(expected).digest();
+  return timingSafeEqual(a, b);
+}
+
+/**
  * Приём обновлений от Telegram.
  *
  * Обязательно проверяем секретный заголовок: иначе любой, узнав URL, сможет
  * слать боту поддельные сообщения от имени пользователей.
+ *
+ * Проверка «закрыта на отказ»: если секрет не настроен, обновления
+ * отклоняются. Раньше при пустом секрете ветка просто пропускалась, и
+ * вебхук принимал всё подряд.
  */
 async function handleTelegramWebhook(request: Request, env: WorkerEnv): Promise<Response> {
   const expected = env.TELEGRAM_WEBHOOK_SECRET;
-  if (expected) {
-    const provided = request.headers.get("x-telegram-bot-api-secret-token");
-    if (provided !== expected) {
-      return json(401, { ok: false, error: "Invalid webhook secret" });
-    }
+  if (!expected) {
+    console.error("[worker] TELEGRAM_WEBHOOK_SECRET не задан — обновления отклонены");
+    return json(500, { ok: false, error: "Webhook secret is not configured" });
+  }
+
+  const provided = request.headers.get("x-telegram-bot-api-secret-token");
+  if (!provided || !secretMatches(provided, expected)) {
+    return json(401, { ok: false, error: "Invalid webhook secret" });
   }
 
   let update: unknown;

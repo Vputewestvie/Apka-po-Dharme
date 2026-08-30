@@ -3,9 +3,10 @@ import {
   BookOpen,
   CheckCircle2,
   Clock3,
+  Moon,
   NotebookPen,
-  Settings2,
   Sparkles,
+  Sun,
   Trash2,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -61,7 +62,6 @@ const navigation = [
   { id: "library", label: "Практики", icon: BookOpen },
   { id: "diary", label: "Дневник", icon: NotebookPen },
   { id: "statistics", label: "Статистика", icon: BarChart3 },
-  { id: "settings", label: "Настройки", icon: Settings2 },
 ] as const satisfies { id: MiniAppScreen; label: string; icon: typeof Clock3 }[];
 
 /** Русское склонение по числу: 1 практика, 2 практики, 5 практик. */
@@ -96,8 +96,6 @@ type ScreenActions = {
   onStartPractice: (item: ScheduledPracticeDto) => Promise<void>;
   timerBusy: string | null;
   activeTimerId: string | null;
-  theme: "light" | "dark";
-  onToggleTheme: () => void;
 };
 
 export function App() {
@@ -105,10 +103,15 @@ export function App() {
     // Кнопки бота открывают конкретный экран: ?screen=schedule и т.п.
     // Неизвестное значение тихо игнорируется — остаётся «today».
     const requested = new URLSearchParams(window.location.search).get("screen");
-    const valid = ["today", "library", "diary", "statistics", "settings"];
-    // Раздел «План» объединён с «Практиками», поэтому старые ссылки бота
-    // (?screen=schedule) ведут туда же — иначе кнопки бота ломались бы.
-    const mapped = requested === "schedule" ? "library" : (requested as MiniAppScreen);
+    const valid = ["today", "library", "diary", "statistics"];
+    // Раздел «План» объединён с «Практиками», а «Настройки» удалены — тема
+    // переехала в шапку. Старые ссылки бота не должны ломаться.
+    const mapped =
+      requested === "schedule"
+        ? "library"
+        : requested === "settings"
+          ? "today"
+          : (requested as MiniAppScreen);
     return valid.includes(mapped) ? mapped : "today";
   });
   const { theme, toggleTheme } = useTheme();
@@ -483,10 +486,24 @@ export function App() {
   return (
     <div className="shell">
       <header className="hero">
-        <div className="hero-copy">
-          <span className="eyebrow">Telegram Mini App</span>
-          <h1>Дневник духовной практики</h1>
-          <p>Ежедневный ритм, практика и тихая ясность в одном месте.</p>
+        <div className="hero-top">
+          <div className="hero-copy">
+            <span className="eyebrow">Telegram Mini App</span>
+            <h1>Дневник духовной практики</h1>
+            <p>Ежедневный ритм, практика и тихая ясность в одном месте.</p>
+          </div>
+          {/* Тема — глобальная настройка, поэтому живёт в шапке и доступна
+              с любого экрана: отдельный раздел «Настройки» ради одной
+              кнопки не имел смысла. */}
+          <button
+            type="button"
+            className="ghost-button hero-theme"
+            onClick={toggleTheme}
+            aria-label={theme === "dark" ? "Включить светлую тему" : "Включить тёмную тему"}
+            title={theme === "dark" ? "Светлая тема" : "Тёмная тема"}
+          >
+            {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
         </div>
         <div className="hero-meta">
           <div className="metric">
@@ -540,8 +557,6 @@ export function App() {
             onStartPractice: handleStartPractice,
             timerBusy,
             activeTimerId: activeTimer?.item.id ?? null,
-            theme,
-            onToggleTheme: toggleTheme,
           })
         )}
       </main>
@@ -647,10 +662,6 @@ function renderScreen(
       );
     case "statistics":
       return <StatisticsScreen statistics={dashboard.statistics} practiceMap={practiceMap} />;
-    case "settings":
-      return (
-        <SettingsScreen theme={actions.theme} onToggleTheme={actions.onToggleTheme} />
-      );
   }
 }
 
@@ -1217,45 +1228,6 @@ function StatisticsScreen(props: {
         <span className="eyebrow">Любимая</span>
         <h2>{favoriteTitle}</h2>
         <p>Чаще всего возвращаешься именно к этой практике.</p>
-      </article>
-    </section>
-  );
-}
-
-function SettingsScreen(props: { theme: "light" | "dark"; onToggleTheme: () => void }) {
-  return (
-    <section className="stack">
-      <article className="panel">
-        <span className="eyebrow">Настройки</span>
-        <h2>Оформление</h2>
-        <p>Настрой внешний вид приложения под себя.</p>
-        <div className="settings-section" style={{ marginTop: 16 }}>
-          <div className="settings-row">
-            <div className="settings-row-label">
-              <strong>Тёмная тема</strong>
-              <span>Переключиться между светлой и тёмной темой</span>
-            </div>
-            <label className="toggle">
-              <input
-                type="checkbox"
-                checked={props.theme === "dark"}
-                onChange={props.onToggleTheme}
-              />
-              <div className="toggle-track" />
-              <div className="toggle-thumb" />
-            </label>
-          </div>
-        </div>
-        <div className="form-grid" style={{ marginTop: 20 }}>
-          <span className="eyebrow">Информация</span>
-          <div className="settings-row">
-            <div className="settings-row-label">
-              <strong>Версия</strong>
-              <span>v0.1.0 · MVP Core</span>
-            </div>
-            <span className="tag">Mini App</span>
-          </div>
-        </div>
       </article>
     </section>
   );

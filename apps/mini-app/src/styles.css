@@ -243,6 +243,18 @@ a {
     box-shadow var(--duration-slow) var(--ease-out);
 }
 
+/* Верхняя строка шапки: заголовок слева, переключатель темы справа. */
+.hero-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.hero-theme {
+  flex-shrink: 0;
+}
+
 .hero-copy {
   display: grid;
   gap: 6px;
@@ -466,7 +478,10 @@ a {
   right: 0;
   bottom: 0;
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  /* Колонки считаются по числу кнопок: при добавлении/удалении раздела
+     не нужно вручную править количество. */
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
   gap: 2px;
   padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
   background: var(--surface);
@@ -1187,89 +1202,6 @@ a {
   font-size: 10px;
   line-height: 1.4;
   color: var(--muted);
-}
-
-/* --- Settings (переключатель темы) --- */
-.settings-section {
-  display: grid;
-  gap: 12px;
-}
-
-.settings-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 14px 16px;
-  background: var(--surface-strong);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  transition: all var(--duration-fast) var(--ease-out);
-}
-
-.settings-row:hover {
-  border-color: var(--border-strong);
-}
-
-.settings-row-label {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-
-.settings-row-label strong {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.settings-row-label span {
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-/* --- Toggle switch --- */
-.toggle {
-  position: relative;
-  width: 48px;
-  height: 28px;
-  flex-shrink: 0;
-  cursor: pointer;
-}
-
-.toggle input {
-  position: absolute;
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.toggle-track {
-  position: absolute;
-  inset: 0;
-  background: var(--border-strong);
-  border-radius: var(--radius-full);
-  transition: background var(--duration-fast) var(--ease-out);
-}
-
-.toggle input:checked + .toggle-track {
-  background: var(--accent);
-}
-
-.toggle-thumb {
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 22px;
-  height: 22px;
-  background: #fff;
-  border-radius: 50%;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
-  transition: transform var(--duration-fast) var(--ease-spring);
-}
-
-.toggle input:checked ~ .toggle-thumb {
-  transform: translateX(20px);
 }
 
 /* --- Адаптация: планшеты и десктоп --- */
