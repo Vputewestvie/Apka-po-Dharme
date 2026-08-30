@@ -32,6 +32,14 @@ export async function createApiContainer(
     const database = await openSqliteDatabase(databasePathOrClient);
     applyMigrations(database, loadInitMigration());
     client = new SqliteClientAdapter(database);
+    // Колонка practices.source появилась позже init-схемы: локальная схема
+    // исполняется при каждом старте (CREATE TABLE IF NOT EXISTS не обновляет
+    // существующие таблицы), поэтому старые базы добиваем идемпотентно.
+    try {
+      await client.execute("alter table practices add column source text not null default 'manual'");
+    } catch {
+      // колонка уже есть — это единственная причина ошибки здесь
+    }
   } else {
     client = databasePathOrClient;
   }
@@ -85,6 +93,7 @@ export async function createApiContainer(
 
   return {
     aiService,
+    practiceRepository,
     practiceLibraryService: new PracticeLibraryService(practiceRepository, materialRepository),
     scheduleService,
     scheduleAiService: new ScheduleAiService(aiService, scheduleService, practiceRepository),

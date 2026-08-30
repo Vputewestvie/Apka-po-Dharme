@@ -16,6 +16,7 @@ function practiceToRow(practice: Practice): PracticeRow {
     color: practice.color,
     default_duration_minutes: practice.defaultDurationMinutes,
     personal_notes: practice.notes,
+    source: practice.source,
     is_archived: practice.archived,
     created_at: practice.createdAt,
     updated_at: practice.updatedAt,
@@ -36,7 +37,7 @@ function practiceFromRow(row: PracticeRow) {
       kind: row.image_kind,
       ref: row.image_ref,
     },
-    "manual",
+    row.source === "template" || row.source === "ai" ? row.source : "manual",
     row.personal_notes,
     Boolean(row.is_archived),
     row.created_at,
@@ -201,8 +202,8 @@ export class SqlitePracticeRepository implements PracticeRepository {
     await this.client.execute(
       `insert into practices (
         id, user_id, category_id, title, description, image_kind, image_ref, icon, color,
-        default_duration_minutes, personal_notes, is_archived, created_at, updated_at
-      ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        default_duration_minutes, personal_notes, is_archived, source, created_at, updated_at
+      ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       on conflict(id) do update set
         category_id = excluded.category_id,
         title = excluded.title,
@@ -214,6 +215,7 @@ export class SqlitePracticeRepository implements PracticeRepository {
         default_duration_minutes = excluded.default_duration_minutes,
         personal_notes = excluded.personal_notes,
         is_archived = excluded.is_archived,
+        source = excluded.source,
         updated_at = excluded.updated_at`,
       [
         row.id,
@@ -228,6 +230,7 @@ export class SqlitePracticeRepository implements PracticeRepository {
         row.default_duration_minutes,
         row.personal_notes,
         row.is_archived,
+        row.source ?? "manual",
         row.created_at,
         row.updated_at,
       ],

@@ -1,6 +1,7 @@
-import type { Practice } from "../../../../../packages/domain/src";
+import { Practice } from "../../../../../packages/domain/src";
 import type { PracticeRepository } from "../../../../../packages/database/src";
 import type { ParsedScheduleCommand } from "../../../../../packages/ai-adapter/src";
+import { createId } from "../../id";
 import { ValidationError } from "../../validation";
 import type { AiService } from "../ai";
 import { ScheduleService } from "./service";
@@ -81,31 +82,65 @@ function resolvePracticeId(
   return byWord?.id ?? null;
 }
 
+/** Категория для автосозданной практики — по ключевым словам названия. */
+function guessCategory(name: string): string {
+  const n = normalizeName(name);
+  if (/дых|пранаям|breath|pranayam/.test(n)) return "Дыхание";
+  if (/медитац|meditat|осознан|мозарефлекс/.test(n)) return "Ум";
+  if (/чита|чтени|книг|reading|book/.test(n)) return "Текст";
+  return "Тело";
+}
+
+/** Картинка для автосозданной практики — по категории (как на клиенте). */
+function imageForCategory(category: string): { kind: "builtin"; ref: string } {
+  switch (category) {
+    case "Дыхание":
+      return { kind: "builtin", ref: "/images/categories/pranayama.jpg" };
+    case "Текст":
+      return { kind: "builtin", ref: "/images/categories/reading.jpg" };
+    default:
+      return { kind: "builtin", ref: "/images/categories/qigong.jpg" };
+  }
+}
+
+/** «чуть-чуть почитаем» → «Почитаем» — название практики с заглавной буквы. */
+function toTitle(name: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) return "Новая практика";
+  const first = trimmed[0].toLocaleUpperCase("ru");
+  return first + trimmed.slice(1);
+}
+
 /** Собирает элементы расписания из разобранного ответа модели. */
 function buildPractices(
   parsed: ParsedScheduleCommand,
   library: Practice[],
   nameToId: Record<string, string>,
-): { practices: Array<{ practiceId: string; plannedStartTime: null; plannedDurationMinutes: number; order: number }>; unmatched: string[] } {
+): {
+  practices: Array<{ practiceId: string; plannedStartTime: null; plannedDurationMinutes: number; order: number }>;
+  unmatched: Array<{ practiceName: string; durationMinutes: number }>;
+} {
   const practices: Array<{ practiceId: string; plannedStartTime: null; plannedDurationMinutes: number; order: number }> = [];
-  const unmatched: string[] = [];
+  const unmatched: Array<{ practiceName: string; durationMinutes: number }> = [];
 
   for (const item of parsed.items) {
     const practiceId = resolvePracticeId(item.practiceName, library, nameToId);
     // Последняя проверка владения: клиентский nameToId мог указывать на чужую
-    // практику — такая считается ненайденной, а не добавляется в план.
-    if (!practiceId || !library.some((p) => p.id === practiceId)) {
-      // Ненайденное имя больше не роняет весь план (раньше это был 404 на
-      // каждый запрос, если в описании встречалась практика вне библиотеки).
-      // Такие пункты пропускаются и репортируются пользователю.
-      unmatched.push(item.practiceName);
+    // практику — такая считается ненайденной и создаётся заново.
+    const known = practiceId !== null && library.some((p) => p.id === practiceId);
+    const durationRaw = Number(item.durationMinutes);
+    const duration = Number.isFinite(durationRaw) && durationRaw > 0 ? Math.round(durationRaw) : 15;
+
+    if (!known) {
+      // Ненайденная практика не роняет план: пользователь может назвать что-то,
+      // чего в библиотеке ещё нет, — тогда практика будет создана.
+      unmatched.push({ practiceName: item.practiceName, durationMinutes: duration });
       continue;
     }
-    const duration = Number(item.durationMinutes);
     practices.push({
-      practiceId,
+      practiceId: practiceId!,
       plannedStartTime: null,
-      plannedDurationMinutes: Number.isFinite(duration) && duration > 0 ? Math.round(duration) : 15,
+      plannedDurationMinutes: duration,
       order: practices.length,
     });
   }
@@ -138,9 +173,10 @@ export class ScheduleAiService {
   /**
    * Превращает разобранный моделью ответ в план дня.
    *
-   * Мягкое поведение: без даты берём сегодня, ненайденные практики пропускаем
-   * (ошибка только если не нашлось ни одной), существующий план на дату
-   * заменяем, а не создаём дубль.
+   * Мягкое поведение: без даты берём сегодня, ненайденные практики автоматически
+   * создаются в библиотеке (source: "ai") и попадают в план — пользователь может
+   * описать день «своими словами», не заполняя библиотеку заранее. Существующий
+   * план на дату заменяем, а не создаём дубль.
    */
   private async applyParsed(
     userId: string,
@@ -149,18 +185,40 @@ export class ScheduleAiService {
     title: string,
     source: "text_ai" | "voice_ai",
   ) {
-    const library = await this.practiceRepository.listByUserId(userId);
-    if (library.length === 0) {
+    if (parsed.items.length === 0) {
       throw new ValidationError(
-        "В библиотеке нет практик. Сначала добавьте практики на вкладке «Практики», потом собирайте план.",
+        "Не понял, какие практики включить в план. Опишите день конкретнее, например: «утром 15 минут медитации, вечером дыхание».",
       );
     }
 
+    const library = await this.practiceRepository.listByUserId(userId);
     const { practices, unmatched } = buildPractices(parsed, library, practiceNameToId);
-    if (practices.length === 0) {
-      throw new ValidationError(
-        `Не нашёл в библиотеке ни одной практики из описания (${unmatched.join(", ")}). Добавьте их на вкладке «Практики» или назовите существующие: ${library.map((p) => p.title).join(", ")}.`,
+
+    for (const item of unmatched) {
+      const category = guessCategory(item.practiceName);
+      const created = new Practice(
+        createId(),
+        userId,
+        toTitle(item.practiceName),
+        `${toTitle(item.practiceName)} — практика, созданная из AI-плана.`,
+        category,
+        item.durationMinutes,
+        "#688b76",
+        "leaf",
+        imageForCategory(category),
+        "ai",
       );
+      await this.practiceRepository.upsert(created);
+      practices.push({
+        practiceId: created.id,
+        plannedStartTime: null,
+        plannedDurationMinutes: item.durationMinutes,
+        order: practices.length,
+      });
+    }
+
+    if (practices.length === 0) {
+      throw new ValidationError("Не удалось собрать план: список практик пуст.");
     }
 
     const date = parsed.date ?? todayUtc();

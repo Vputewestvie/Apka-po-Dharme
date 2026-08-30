@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS practices (
   default_duration_minutes INTEGER NOT NULL,
   personal_notes TEXT NOT NULL,
   is_archived INTEGER NOT NULL,
+  source TEXT NOT NULL DEFAULT 'manual',
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );

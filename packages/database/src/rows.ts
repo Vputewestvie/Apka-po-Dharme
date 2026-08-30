@@ -39,6 +39,7 @@ export type PracticeRow = {
   is_archived: boolean;
   created_at: string;
   updated_at: string;
+  source?: string;
 };
 
 export type ScheduleRow = {
