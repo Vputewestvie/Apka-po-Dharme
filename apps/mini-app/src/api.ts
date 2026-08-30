@@ -142,17 +142,29 @@ export async function loadDashboardData(
   }
 }
 
-const DEFAULT_IMAGES = [
-  "/images/categories/qigong.jpg",
-  "/images/categories/pranayama.jpg",
-  "/images/categories/reading.jpg",
-];
+// Библиотека картинок по категориям: выбор по ключевым словам в названии
+// категории практики, при отсутствии совпадений — медитация.
+const DEFAULT_IMAGES = {
+  meditation: "/images/categories/meditation.webp",
+  pranayama: "/images/categories/pranayama.webp",
+  qigong: "/images/categories/qigong.webp",
+  reading: "/images/categories/reading.webp",
+  mantra: "/images/categories/mantra.webp",
+  walk: "/images/categories/walk.webp",
+  sleep: "/images/categories/sleep.webp",
+  gratitude: "/images/categories/gratitude.webp",
+};
 
 function pickImageByCategory(category: string): string {
   const lower = category.toLowerCase();
-  if (lower.includes("дых") || lower.includes("prana")) return DEFAULT_IMAGES[1];
-  if (lower.includes("текст") || lower.includes("read") || lower.includes("книг")) return DEFAULT_IMAGES[2];
-  return DEFAULT_IMAGES[0];
+  if (lower.includes("дых") || lower.includes("prana")) return DEFAULT_IMAGES.pranayama;
+  if (lower.includes("текст") || lower.includes("read") || lower.includes("книг")) return DEFAULT_IMAGES.reading;
+  if (lower.includes("йог") || lower.includes("цигун") || lower.includes("тело") || lower.includes("qigong")) return DEFAULT_IMAGES.qigong;
+  if (lower.includes("мантр") || lower.includes("japa")) return DEFAULT_IMAGES.mantra;
+  if (lower.includes("прогул") || lower.includes("walk") || lower.includes("природ")) return DEFAULT_IMAGES.walk;
+  if (lower.includes("сон") || lower.includes("sleep") || lower.includes("evening") || lower.includes("отдых")) return DEFAULT_IMAGES.sleep;
+  if (lower.includes("дневник") || lower.includes("благодар") || lower.includes("gratitude")) return DEFAULT_IMAGES.gratitude;
+  return DEFAULT_IMAGES.meditation;
 }
 
 export function createPractice(input: {
@@ -198,6 +210,17 @@ export function generateAiSchedule(input: {
     userId: input.userId,
     text: input.text,
     practiceNameToId: input.practiceNameToId,
+  });
+}
+
+/**
+ * AI-анализ дневника: сервер собирает записи практики и возвращает
+ * наблюдения и рекомендации в контексте дхармы. Вопрос необязателен.
+ */
+export function analyzeDiary(input: { userId: string; question?: string }) {
+  return write<{ analysis: string }>("/diary/ai/analyze", "POST", {
+    userId: input.userId,
+    question: input.question ?? "",
   });
 }
 

@@ -1535,3 +1535,91 @@ a {
   background: var(--accent-soft);
   color: var(--accent);
 }
+
+/* ============================================
+   Фотографии: hero-шапка и оверлей таймера
+   ============================================ */
+
+:root {
+  --hero-image: url("/images/hero/dawn.webp");
+  --hero-tint: linear-gradient(
+    160deg,
+    rgba(245, 240, 235, 0.9) 0%,
+    rgba(245, 240, 235, 0.78) 45%,
+    rgba(232, 220, 200, 0.6) 100%
+  );
+}
+
+[data-theme="dark"] {
+  --hero-image: url("/images/hero/night.webp");
+  --hero-tint: linear-gradient(
+    160deg,
+    rgba(15, 17, 23, 0.88) 0%,
+    rgba(22, 26, 36, 0.8) 45%,
+    rgba(40, 35, 60, 0.68) 100%
+  );
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --hero-image: url("/images/hero/night.webp");
+    --hero-tint: linear-gradient(
+      160deg,
+      rgba(15, 17, 23, 0.88) 0%,
+      rgba(22, 26, 36, 0.8) 45%,
+      rgba(40, 35, 60, 0.68) 100%
+    );
+  }
+}
+
+.hero {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--hero-image) center / cover no-repeat;
+}
+
+.hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--hero-tint);
+}
+
+.timer-overlay--morning {
+  background:
+    linear-gradient(rgba(10, 16, 24, 0.45), rgba(10, 16, 24, 0.6)),
+    url("/images/timer/morning.webp") center / cover no-repeat;
+}
+
+.timer-overlay--night {
+  background:
+    linear-gradient(rgba(6, 8, 14, 0.5), rgba(6, 8, 14, 0.65)),
+    url("/images/timer/night.webp") center / cover no-repeat;
+}
+
+/* --- AI-анализ дневника: ответ модели --- */
+.ai-answer {
+  padding: 12px 14px;
+  background: var(--surface-strong);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.ai-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}

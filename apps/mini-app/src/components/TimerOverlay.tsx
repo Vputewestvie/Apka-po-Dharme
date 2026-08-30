@@ -26,7 +26,11 @@ export function TimerOverlay(props: TimerOverlayProps) {
   const progress = Math.max(0, Math.min(1, props.remainingSeconds / totalSeconds));
 
   return (
-    <div className="timer-overlay" role="dialog" aria-modal="true">
+    <div
+      className={`timer-overlay ${new Date().getHours() >= 6 && new Date().getHours() < 18 ? "timer-overlay--morning" : "timer-overlay--night"}`}
+      role="dialog"
+      aria-modal="true"
+    >
       <div className="timer-card">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span className="eyebrow" style={{ margin: 0 }}>

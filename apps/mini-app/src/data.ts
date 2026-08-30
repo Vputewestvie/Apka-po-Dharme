@@ -16,7 +16,7 @@ export const fallbackDashboardData: DashboardData = {
       icon: "leaf",
       image: {
         kind: "builtin",
-        ref: "/images/categories/qigong.jpg",
+        ref: "/images/categories/qigong.webp",
       },
       source: "manual",
       notes: "",
@@ -33,7 +33,7 @@ export const fallbackDashboardData: DashboardData = {
       icon: "wind",
       image: {
         kind: "builtin",
-        ref: "/images/categories/pranayama.jpg",
+        ref: "/images/categories/pranayama.webp",
       },
       source: "manual",
       notes: "",
@@ -50,7 +50,7 @@ export const fallbackDashboardData: DashboardData = {
       icon: "book",
       image: {
         kind: "builtin",
-        ref: "/images/categories/reading.jpg",
+        ref: "/images/categories/reading.webp",
       },
       source: "manual",
       notes: "",
@@ -105,6 +105,7 @@ export const fallbackDashboardData: DashboardData = {
       text: "После практики тело стало заметно мягче, дыхание ровное.",
       voiceFileId: null,
       transcription: null,
+      practiceTitle: "Цигун",
     },
   ],
   statistics: {
