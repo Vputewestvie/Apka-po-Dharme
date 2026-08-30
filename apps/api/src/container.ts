@@ -140,6 +140,7 @@ export async function createApiContainer(
     statisticsService: new StatisticsService(statisticsRepository),
     notificationService: new NotificationService(notificationRepository),
     userService: new UserService(userRepository, settingsRepository),
+    userRepository,
   };
 }
 

@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { ApiContainer } from "./container";
 import type { ApiRequest, ApiResponse, JsonValue } from "./types";
 import {
+  botInspireSchema,
   ForbiddenError,
   UnauthorizedError,
   ValidationError,
@@ -399,6 +400,46 @@ const routeDefinitions: RouteDefinition[] = [
       await container.notificationService.cancel(body.jobId);
       // cancel() — void; toJson(undefined) ронял бы ответ в 500 после успешной отмены.
       return ok({ cancelled: true });
+    },
+  },
+
+  // --- Bot inspiration ---
+  // Service-to-service: бот запрашивает AI-контент для интерактива в чате.
+  {
+    method: "POST",
+    pathname: "/bot/inspire",
+    handler: async (request, container) => {
+      requiredService(request);
+      const body = validateWith(botInspireSchema, request.body);
+      const inspiration = await container.aiService.generateInspiration(body.kind, body.subject);
+      return ok(toJson(inspiration));
+    },
+  },
+  {
+    method: "GET",
+    pathname: "/bot/practices",
+    handler: async (request, container) => {
+      requiredService(request);
+      // В этом приложении userId == telegram id строкой (ensureUser), но
+      // сверяемся с таблицей users, чтобы не поверить в несуществующего.
+      const telegramId = Number(requiredQuery(request, "telegramId"));
+      if (!Number.isFinite(telegramId)) {
+        throw new ValidationError("telegramId must be a number");
+      }
+      const user = await container.userRepository.getByTelegramId(telegramId);
+      if (!user) {
+        return ok([]);
+      }
+      const practices = await container.practiceRepository.listByUserId(user.id);
+      return ok(
+        practices
+          .filter((practice) => !practice.archived)
+          .map((practice) => ({
+            id: practice.id,
+            title: practice.title,
+            minutes: practice.defaultDurationMinutes,
+          })),
+      );
     },
   },
 ];

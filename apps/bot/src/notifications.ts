@@ -4,24 +4,30 @@ export type BotTransport = {
   sendMessage(chatId: string, text: string, extra?: Record<string, unknown>): Promise<void>;
 };
 
+type NotificationCopy = { emoji: string; lead: string };
+
+function notificationCopy(job: NotificationJobRow): NotificationCopy {
+  switch (job.type) {
+    case "morning":
+      return { emoji: "🌅", lead: "Доброе утро. Сегодня:" };
+    case "day":
+      return { emoji: "☀️", lead: "Следующая практика:" };
+    case "evening":
+      return { emoji: "🌇", lead: "Вечерняя проверка:" };
+    case "next_practice":
+      return { emoji: "🔔", lead: "Пора перейти к практике:" };
+    case "timer_finished":
+      return { emoji: "🪷", lead: "Практика завершена:" };
+    default:
+      return { emoji: "📿", lead: "Напоминание:" };
+  }
+}
+
 export function formatNotification(job: NotificationJobRow) {
   const payload = JSON.parse(job.payload_json || "{}") as Record<string, unknown>;
   const title = typeof payload.title === "string" ? payload.title : "Практика";
-
-  switch (job.type) {
-    case "morning":
-      return `Доброе утро. Сегодня: ${title}`;
-    case "day":
-      return `Следующая практика: ${title}`;
-    case "evening":
-      return `Вечерняя проверка: ${title}`;
-    case "next_practice":
-      return `Пора перейти к практике: ${title}`;
-    case "timer_finished":
-      return `Практика завершена: ${title}`;
-    default:
-      return `Уведомление: ${title}`;
-  }
+  const { emoji, lead } = notificationCopy(job);
+  return `${emoji} ${lead} ${title}`;
 }
 
 export async function sendNotificationWithRetry(

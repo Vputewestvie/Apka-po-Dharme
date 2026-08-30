@@ -1,6 +1,7 @@
 import type { AiProvider } from "./provider";
-import type { AiTextRequest, AiVoiceRequest, ParsedScheduleCommand } from "./types";
+import type { AiInspiration, AiInspirationRequest, AiTextRequest, AiVoiceRequest, ParsedScheduleCommand } from "./types";
 import { parseJsonCommand, todayIsoDate } from "./parse-json-command";
+import { buildInspirationPrompt } from "./inspiration-prompts";
 
 export type OpenAiCompatibleConfig = {
   baseUrl: string;
@@ -59,6 +60,11 @@ ${request.text}`;
 
   async answerUserQuestion(request: AiTextRequest): Promise<string> {
     return this.complete(request.text);
+  }
+
+  async generateInspiration(request: AiInspirationRequest): Promise<AiInspiration> {
+    const content = await this.complete(buildInspirationPrompt(request));
+    return { text: content, generated: true };
   }
 
   private async complete(prompt: string) {

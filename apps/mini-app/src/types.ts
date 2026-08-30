@@ -1,7 +1,6 @@
 export type MiniAppScreen =
   | "today"
   | "library"
-  | "schedule"
   | "diary"
   | "statistics"
   | "settings";

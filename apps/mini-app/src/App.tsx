@@ -1,14 +1,11 @@
 import {
   BarChart3,
   BookOpen,
-  CalendarDays,
   CheckCircle2,
   Clock3,
-  Moon,
   NotebookPen,
   Settings2,
   Sparkles,
-  Sun,
   Trash2,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -62,11 +59,19 @@ function useTheme() {
 const navigation = [
   { id: "today", label: "Сегодня", icon: Clock3 },
   { id: "library", label: "Практики", icon: BookOpen },
-  { id: "schedule", label: "План", icon: CalendarDays },
   { id: "diary", label: "Дневник", icon: NotebookPen },
   { id: "statistics", label: "Статистика", icon: BarChart3 },
   { id: "settings", label: "Настройки", icon: Settings2 },
 ] as const satisfies { id: MiniAppScreen; label: string; icon: typeof Clock3 }[];
+
+/** Русское склонение по числу: 1 практика, 2 практики, 5 практик. */
+function pluralRu(count: number, one: string, few: string, many: string): string {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  if (mod10 === 1 && mod100 !== 11) return one;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return few;
+  return many;
+}
 
 type ScreenActions = {
   busy: string | null;
@@ -96,7 +101,16 @@ type ScreenActions = {
 };
 
 export function App() {
-  const [screen, setScreen] = useState<MiniAppScreen>("today");
+  const [screen, setScreen] = useState<MiniAppScreen>(() => {
+    // Кнопки бота открывают конкретный экран: ?screen=schedule и т.п.
+    // Неизвестное значение тихо игнорируется — остаётся «today».
+    const requested = new URLSearchParams(window.location.search).get("screen");
+    const valid = ["today", "library", "diary", "statistics", "settings"];
+    // Раздел «План» объединён с «Практиками», поэтому старые ссылки бота
+    // (?screen=schedule) ведут туда же — иначе кнопки бота ломались бы.
+    const mapped = requested === "schedule" ? "library" : (requested as MiniAppScreen);
+    return valid.includes(mapped) ? mapped : "today";
+  });
   const { theme, toggleTheme } = useTheme();
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -463,6 +477,7 @@ export function App() {
 
   const scheduledItems = dashboard?.schedule?.items ?? [];
   const completedCount = scheduledItems.filter((item) => item.status === "completed").length;
+  const planTotal = scheduledItems.length || dashboard?.practices.length || 0;
   const activeTimerBusy = activeTimer ? timerBusy?.includes(activeTimer.item.id) ?? false : false;
 
   return (
@@ -476,12 +491,14 @@ export function App() {
         <div className="hero-meta">
           <div className="metric">
             <span>Сегодня</span>
-            <strong>{scheduledItems.length || dashboard?.practices.length || 0} практики</strong>
+            <strong>
+              {planTotal} {pluralRu(planTotal, "практика", "практики", "практик")}
+            </strong>
           </div>
           <div className="metric">
             <span>Готово</span>
             <strong>
-              {completedCount} из {scheduledItems.length || dashboard?.practices.length || 0}
+              {completedCount} из {planTotal}
             </strong>
           </div>
         </div>
@@ -606,20 +623,12 @@ function renderScreen(
       );
     case "library":
       return (
-        <LibraryScreen
-          busy={actions.busy === "practice"}
-          practices={dashboard.practices}
-          onCreatePractice={actions.onCreatePractice}
-          onDeletePractice={actions.onDeletePractice}
-          deleteBusy={actions.busy?.startsWith("delete:") ? actions.busy : null}
-        />
-      );
-    case "schedule":
-      return (
-        <ScheduleScreen
-          busy={actions.busy === "schedule" || actions.busy === "repeat"}
+        <PracticesScreen
+          busy={actions.busy}
           dashboard={dashboard}
           practiceMap={practiceMap}
+          onCreatePractice={actions.onCreatePractice}
+          onDeletePractice={actions.onDeletePractice}
           onRepeatYesterday={actions.onRepeatYesterday}
           onSaveSchedule={actions.onSaveSchedule}
         />
@@ -792,44 +801,182 @@ function TodayScreen(props: {
   );
 }
 
-function LibraryScreen(props: {
-  practices: PracticeDto[];
-  busy: boolean;
-  deleteBusy: string | null;
+const STATUS_LABELS: Record<string, string> = {
+  planned: "Запланировано",
+  completed: "Выполнено",
+  skipped: "Пропущено",
+};
+
+function statusTagClass(status: string): string {
+  if (status === "completed") return "tag tag-done";
+  if (status === "skipped") return "tag tag-skipped";
+  return "tag";
+}
+
+/**
+ * Единый раздел «Практики»: план на сегодня + библиотека практик.
+ *
+ * Раньше это были две отдельные вкладки («Практики» и «План»), причём
+ * планировщик дублировал библиотеку собственным списком чипов. Теперь
+ * библиотека сама является пультом плана: переключатель на строке практики
+ * сразу добавляет её в расписание дня или убирает оттуда, а верхняя панель
+ * показывает итоговый порядок и статусы.
+ */
+function PracticesScreen(props: {
+  dashboard: DashboardData;
+  practiceMap: Map<string, PracticeDto>;
+  busy: string | null;
   onCreatePractice: (input: {
     title: string;
     category: string;
     defaultDurationMinutes: number;
   }) => Promise<void>;
   onDeletePractice: (practiceId: string) => Promise<void>;
+  onRepeatYesterday: () => Promise<void>;
+  onSaveSchedule: (practiceIds: string[], title: string) => Promise<void>;
 }) {
-  const [title, setTitle] = useState("");
+  const items = useMemo(
+    () => [...(props.dashboard.schedule?.items ?? [])].sort((a, b) => a.order - b.order),
+    [props.dashboard.schedule?.items],
+  );
+  const plannedIds = useMemo(() => items.map((item) => item.practiceId), [items]);
+  const completedCount = items.filter((item) => item.status === "completed").length;
+
+  const [title, setTitle] = useState(props.dashboard.schedule?.title || "Мой день");
+  const [titleDirty, setTitleDirty] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [newTitle, setNewTitle] = useState("");
   const [category, setCategory] = useState("Тело");
   const [duration, setDuration] = useState("20");
 
-  async function handleSubmit() {
-    if (!title.trim()) return;
+  // Название дня подтягивается из расписания, пока пользователь его не правил.
+  useEffect(() => {
+    if (!titleDirty) {
+      setTitle(props.dashboard.schedule?.title || "Мой день");
+    }
+  }, [props.dashboard.schedule?.id, props.dashboard.schedule?.title, titleDirty]);
+
+  function toggleInPlan(practiceId: string) {
+    const next = plannedIds.includes(practiceId)
+      ? plannedIds.filter((id) => id !== practiceId)
+      : [...plannedIds, practiceId];
+
+    setTogglingId(practiceId);
+    void props.onSaveSchedule(next, title).finally(() => setTogglingId(null));
+  }
+
+  function saveTitle() {
+    const trimmed = title.trim() || "Мой день";
+    setTitle(trimmed);
+    setTitleDirty(false);
+
+    // Без расписания переименовывать нечего: название применится,
+    // когда в план добавят первую практику.
+    if (!props.dashboard.schedule) return;
+    if (trimmed === props.dashboard.schedule.title) return;
+
+    void props.onSaveSchedule(plannedIds, trimmed);
+  }
+
+  async function handleCreate() {
+    if (!newTitle.trim()) return;
 
     await props.onCreatePractice({
-      title: title.trim(),
+      title: newTitle.trim(),
       category,
-      defaultDurationMinutes: Number(duration),
+      defaultDurationMinutes: Number(duration) || 20,
     });
 
-    setTitle("");
+    setNewTitle("");
     setCategory("Тело");
     setDuration("20");
   }
 
+  const createBusy = props.busy === "practice";
+  const repeatBusy = props.busy === "repeat";
+  const scheduleBusy = props.busy === "schedule";
+
   return (
     <section className="stack">
       <article className="panel">
-        <span className="eyebrow">Библиотека</span>
-        <h2>{props.practices.length} практики</h2>
+        <div className="panel-head">
+          <div>
+            <span className="eyebrow">План на сегодня</span>
+            <h2>
+              {items.length} {pluralRu(items.length, "практика", "практики", "практик")} в плане
+            </h2>
+          </div>
+          <span className="tag">
+            {completedCount} из {items.length} выполнено
+          </span>
+        </div>
+
         <div className="form-grid">
           <input
             value={title}
-            onChange={(event) => setTitle(event.target.value)}
+            onChange={(event) => {
+              setTitle(event.target.value);
+              setTitleDirty(true);
+            }}
+            onBlur={saveTitle}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") event.currentTarget.blur();
+            }}
+            placeholder="Название дня"
+            aria-label="Название дня"
+            className="text-input"
+          />
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={repeatBusy}
+            onClick={() => void props.onRepeatYesterday()}
+          >
+            {repeatBusy ? "Повторяю..." : "Повторить вчера"}
+          </button>
+        </div>
+
+        {items.length === 0 ? (
+          <p className="plan-empty">
+            План пока пуст. Отметь практики в библиотеке ниже — они сразу попадут в расписание дня.
+          </p>
+        ) : (
+          <div className="row-list">
+            {items.map((item, index) => (
+              <div key={item.id} className="row-item">
+                <div className="plan-item-main">
+                  <span className="plan-order">{index + 1}</span>
+                  <div>
+                    <strong>{props.practiceMap.get(item.practiceId)?.title ?? "Практика"}</strong>
+                    <p>
+                      {item.plannedStartTime ?? "Без времени"} · {item.plannedDurationMinutes} мин
+                    </p>
+                  </div>
+                </div>
+                <span className={statusTagClass(item.status)}>
+                  {STATUS_LABELS[item.status] ?? item.status}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </article>
+
+      <article className="panel">
+        <div className="panel-head">
+          <div>
+            <span className="eyebrow">Библиотека</span>
+            <h2>
+              {props.dashboard.practices.length}{" "}
+              {pluralRu(props.dashboard.practices.length, "практика", "практики", "практик")}
+            </h2>
+          </div>
+        </div>
+
+        <div className="form-grid">
+          <input
+            value={newTitle}
+            onChange={(event) => setNewTitle(event.target.value)}
             placeholder="Новая практика"
             className="text-input"
           />
@@ -849,136 +996,63 @@ function LibraryScreen(props: {
           <button
             type="button"
             className="primary-button"
-            disabled={props.busy}
-            onClick={() => void handleSubmit()}
+            disabled={createBusy || !newTitle.trim()}
+            onClick={() => void handleCreate()}
           >
-            {props.busy ? "Сохраняю..." : "Добавить"}
+            {createBusy ? "Сохраняю..." : "Добавить"}
           </button>
         </div>
+
         <div className="row-list">
-          {props.practices.map((practice) => (
-            <div key={practice.id} className="row-item">
-              <div>
-                <strong>{practice.title}</strong>
-                <p>
-                  {practice.category} · {practice.defaultDurationMinutes} мин
-                </p>
+          {props.dashboard.practices.map((practice) => {
+            const inPlan = plannedIds.includes(practice.id);
+            const toggling = togglingId === practice.id;
+
+            return (
+              <div key={practice.id} className="row-item">
+                <div>
+                  <strong>{practice.title}</strong>
+                  <p>
+                    {practice.category} · {practice.defaultDurationMinutes} мин
+                  </p>
+                </div>
+                <div className="row-item-actions">
+                  {practice.archived ? <span className="tag">Архив</span> : null}
+                  <button
+                    type="button"
+                    className={inPlan ? "chip chip-active" : "chip"}
+                    disabled={toggling || scheduleBusy}
+                    aria-pressed={inPlan}
+                    title={inPlan ? "Убрать из плана на сегодня" : "Добавить в план на сегодня"}
+                    onClick={() => toggleInPlan(practice.id)}
+                  >
+                    {toggling ? "Сохраняю..." : inPlan ? "В плане" : "В план"}
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-danger-button"
+                    disabled={props.busy === `delete:${practice.id}`}
+                    aria-label={`Удалить практику ${practice.title}`}
+                    title="Удалить практику"
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          `Удалить практику «${practice.title}»? Действие необратимо.`,
+                        )
+                      ) {
+                        void props.onDeletePractice(practice.id);
+                      }
+                    }}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
               </div>
-              <div className="row-item-actions">
-                <span className="tag">{practice.archived ? "Архив" : "Активна"}</span>
-                <button
-                  type="button"
-                  className="icon-danger-button"
-                  disabled={props.deleteBusy === practice.id}
-                  aria-label={`Удалить практику ${practice.title}`}
-                  title="Удалить практику"
-                  onClick={() => {
-                    if (window.confirm(`Удалить практику «${practice.title}»? Действие необратимо.`)) {
-                      void props.onDeletePractice(practice.id);
-                    }
-                  }}
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </article>
     </section>
-  );
-}
-
-function ScheduleScreen(props: {
-  dashboard: DashboardData;
-  practiceMap: Map<string, PracticeDto>;
-  busy: boolean;
-  onSaveSchedule: (practiceIds: string[], title: string) => Promise<void>;
-  onRepeatYesterday: () => Promise<void>;
-}) {
-  const items = props.dashboard.schedule?.items ?? [];
-  const [selectedIds, setSelectedIds] = useState(items.map((item) => item.practiceId));
-  const [title, setTitle] = useState(props.dashboard.schedule?.title || "Мой день");
-
-  useEffect(() => {
-    setSelectedIds(items.map((item) => item.practiceId));
-    setTitle(props.dashboard.schedule?.title || "Мой день");
-  }, [props.dashboard.schedule?.id]);
-
-  function togglePractice(practiceId: string) {
-    setSelectedIds((current) =>
-      current.includes(practiceId)
-        ? current.filter((item) => item !== practiceId)
-        : [...current, practiceId],
-    );
-  }
-
-  return (
-    <section className="stack">
-      <article className="panel">
-        <span className="eyebrow">Планировщик</span>
-        <h2>{props.dashboard.schedule?.title || "Расписание дня"}</h2>
-        <div className="form-grid">
-          <input
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            placeholder="Название дня"
-            className="text-input"
-          />
-          <button
-            type="button"
-            className="primary-button"
-            disabled={props.busy || selectedIds.length === 0}
-            onClick={() => void props.onSaveSchedule(selectedIds, title)}
-          >
-            {props.busy ? "Сохраняю..." : "Сохранить план"}
-          </button>
-          <button
-            type="button"
-            className="secondary-button"
-            disabled={props.busy}
-            onClick={() => void props.onRepeatYesterday()}
-          >
-            Повторить вчера
-          </button>
-        </div>
-        <div className="chip-list">
-          {props.dashboard.practices.map((practice) => (
-            <button
-              key={practice.id}
-              type="button"
-              className={selectedIds.includes(practice.id) ? "chip chip-active" : "chip"}
-              onClick={() => togglePractice(practice.id)}
-            >
-              {practice.title}
-            </button>
-          ))}
-        </div>
-        <div className="row-list">
-          {items.map((item) => (
-            <ScheduleRow
-              key={item.id}
-              item={item}
-              practice={props.practiceMap.get(item.practiceId)}
-            />
-          ))}
-        </div>
-      </article>
-    </section>
-  );
-}
-
-function ScheduleRow(props: { item: ScheduledPracticeDto; practice?: PracticeDto }) {
-  return (
-    <div className="row-item">
-      <div>
-        <strong>{props.practice?.title ?? "Практика"}</strong>
-        <p>
-          {props.item.plannedStartTime ?? "Без времени"} · {props.item.plannedDurationMinutes} мин
-        </p>
-      </div>
-      <span className="tag">{props.item.status}</span>
-    </div>
   );
 }
 

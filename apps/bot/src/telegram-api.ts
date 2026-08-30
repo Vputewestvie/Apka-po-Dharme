@@ -3,17 +3,33 @@ type TelegramResponse<T> = {
   result: T;
 };
 
+export type TelegramFrom = {
+  id: number;
+  first_name?: string;
+  last_name?: string;
+  username?: string;
+};
+
 export type TelegramMessage = {
   message_id: number;
   chat: {
     id: number;
   };
+  from?: TelegramFrom;
   text?: string;
+};
+
+export type TelegramCallbackQuery = {
+  id: string;
+  from: TelegramFrom;
+  data?: string;
+  message?: TelegramMessage;
 };
 
 export type TelegramUpdate = {
   update_id: number;
   message?: TelegramMessage;
+  callback_query?: TelegramCallbackQuery;
 };
 
 export class TelegramBotApi {
@@ -29,7 +45,7 @@ export class TelegramBotApi {
       body: {
         offset,
         timeout: timeoutSeconds,
-        allowed_updates: ["message"],
+        allowed_updates: ["message", "callback_query"],
       },
     });
   }
@@ -42,6 +58,40 @@ export class TelegramBotApi {
         text,
         ...extra,
       },
+    });
+  }
+
+  async editMessageText(
+    chatId: string,
+    messageId: number,
+    text: string,
+    extra?: Record<string, unknown>,
+  ) {
+    return this.request("/editMessageText", {
+      method: "POST",
+      body: {
+        chat_id: chatId,
+        message_id: messageId,
+        text,
+        ...extra,
+      },
+    });
+  }
+
+  async answerCallbackQuery(callbackQueryId: string, text?: string) {
+    return this.request("/answerCallbackQuery", {
+      method: "POST",
+      body: {
+        callback_query_id: callbackQueryId,
+        ...(text ? { text } : {}),
+      },
+    });
+  }
+
+  async setMyCommands(commands: Array<{ command: string; description: string }>) {
+    return this.request("/setMyCommands", {
+      method: "POST",
+      body: { commands },
     });
   }
 

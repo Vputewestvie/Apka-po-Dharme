@@ -1,5 +1,5 @@
 import type { AiProvider } from "./provider";
-import type { AiTextRequest, AiVoiceRequest, ParsedScheduleCommand } from "./types";
+import type { AiInspiration, AiInspirationRequest, AiTextRequest, AiVoiceRequest, ParsedScheduleCommand } from "./types";
 
 export class FallbackAiProvider implements AiProvider {
   constructor(private readonly primary: AiProvider, private readonly fallback: AiProvider) {}
@@ -14,6 +14,20 @@ export class FallbackAiProvider implements AiProvider {
 
   async answerUserQuestion(request: AiTextRequest): Promise<string> {
     return this.callWithFallback(() => this.primary.answerUserQuestion(request), () => this.fallback.answerUserQuestion(request));
+  }
+
+  async generateInspiration(request: AiInspirationRequest): Promise<AiInspiration> {
+    return this.callWithFallback(
+      () => this.mustInspire(this.primary, request),
+      () => this.mustInspire(this.fallback, request),
+    );
+  }
+
+  private mustInspire(provider: AiProvider, request: AiInspirationRequest): Promise<AiInspiration> {
+    if (!provider.generateInspiration) {
+      return Promise.reject(new Error("provider does not support generateInspiration"));
+    }
+    return provider.generateInspiration(request);
   }
 
   private async callWithFallback<T>(primaryCall: () => Promise<T>, fallbackCall: () => Promise<T>): Promise<T> {

@@ -1,5 +1,11 @@
 import type { NotificationJobRow } from "../../../packages/database/src";
 
+/** Виды AI-вдохновения, которые бот запрашивает у API. */
+export type InspireKind = "koan" | "koan-commentary" | "monk-lesson";
+
+/** Контекст запроса: факты, которые AI обязан использовать. */
+export type InspireSubject = Record<string, string>;
+
 type ApiSuccess<T> = {
   ok: true;
   data: T;
@@ -35,6 +41,25 @@ export class BackendApiClient {
         sentAt,
       },
     });
+  }
+
+  /**
+   * AI-вдохновение: свежий коан, толкование карты дня или урок монаха.
+   * Ошибка — нормальная ситуация (AI не настроен/недоступен): вызывающий
+   * обязан иметь запасной текст.
+   */
+  async inspire(kind: InspireKind, subject?: InspireSubject) {
+    return this.request<{ text: string }>("/bot/inspire", {
+      method: "POST",
+      body: { kind, ...(subject ? { subject } : {}) },
+    });
+  }
+
+  /** Практики пользователя для «Колеса Дхармы». user id == telegram id (строкой). */
+  async listUserPractices(telegramId: number | string) {
+    return this.request<Array<{ id: string; title: string; minutes: number }>>(
+      `/bot/practices?telegramId=${encodeURIComponent(String(telegramId))}`,
+    );
   }
 
   private async request<T>(path: string, init?: { method?: string; body?: Record<string, unknown> }) {

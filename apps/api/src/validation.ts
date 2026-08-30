@@ -212,6 +212,13 @@ export const cancelNotificationSchema = z.object({
   jobId: z.string().min(1),
 });
 
+// --- Bot inspiration (service-to-service: бот → API) ---
+
+export const botInspireSchema = z.object({
+  kind: z.enum(["koan", "koan-commentary", "monk-lesson"]),
+  subject: z.record(z.string(), z.string()).optional().default({}),
+});
+
 // --- Auth / Archive ---
 
 export const practiceIdSchema = z.object({

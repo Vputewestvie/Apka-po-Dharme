@@ -57,7 +57,8 @@ function isApiPath(pathname: string): boolean {
     || pathname.startsWith("/timer")
     || pathname.startsWith("/diary")
     || pathname.startsWith("/statistics")
-    || pathname.startsWith("/notifications");
+    || pathname.startsWith("/notifications")
+    || pathname.startsWith("/bot");
 }
 
 export default {
@@ -153,7 +154,7 @@ async function handleTelegramWebhook(request: Request, env: WorkerEnv): Promise<
   }
 
   try {
-    const bot = createBotApp(botConfig(env, new URL(request.url).origin));
+    const bot = createBotApp(botConfig(env, new URL(request.url).origin), await createInProcessBotBackend(env));
     await bot.handleUpdate(update as Parameters<typeof bot.handleUpdate>[0]);
   } catch (error) {
     console.error("[worker] webhook failed", error);
@@ -174,15 +175,42 @@ function botConfig(env: WorkerEnv, apiBaseUrl: string) {
   });
 }
 
-async function flushNotifications(env: WorkerEnv): Promise<void> {
-  // В Workers мини-апка и API живут в одном воркере. HTTP-подзапрос на
-  // собственный workers.dev URL запрещён Cloudflare (error 1042), поэтому
-  // бот работает с данными напрямую через контейнер сервисов.
+/**
+ * In-process бэкенд «бот → данные».
+ *
+ * В Workers мини-апка и API живут в одном воркере. HTTP-подзапрос на
+ * собственный workers.dev URL запрещён Cloudflare (error 1042), поэтому
+ * и вебхук, и cron работают с данными напрямую через контейнер сервисов.
+ */
+async function createInProcessBotBackend(env: WorkerEnv) {
   const app = await createApp(new D1Client(env.DB));
-  const inProcessBackend = {
+  return {
     listPendingNotifications: (now: string) => app.container.notificationService.listPending(now),
     markNotificationSent: (jobId: string, sentAt: string) => app.container.notificationService.markSent(jobId, sentAt),
+    inspire: async (kind: string, subject?: Record<string, string>) => {
+      const inspiration = await app.container.aiService.generateInspiration(
+        kind as "koan" | "koan-commentary" | "monk-lesson",
+        subject,
+      );
+      return { text: inspiration.text };
+    },
+    listUserPractices: async (telegramId: number | string) => {
+      const user = await app.container.userRepository.getByTelegramId(Number(telegramId));
+      if (!user) return [];
+      const practices = await app.container.practiceRepository.listByUserId(user.id);
+      return practices
+        .filter((practice) => !practice.archived)
+        .map((practice) => ({
+          id: practice.id,
+          title: practice.title,
+          minutes: practice.defaultDurationMinutes,
+        }));
+    },
   };
+}
+
+async function flushNotifications(env: WorkerEnv): Promise<void> {
+  const inProcessBackend = await createInProcessBotBackend(env);
   const apiBaseUrl = env.MINI_APP_URL ? new URL(env.MINI_APP_URL).origin : "";
   const bot = createBotApp(botConfig(env, apiBaseUrl), inProcessBackend);
   await bot.flushNotifications();
