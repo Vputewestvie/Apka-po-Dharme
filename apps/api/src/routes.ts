@@ -336,7 +336,8 @@ const routeDefinitions: RouteDefinition[] = [
     pathname: "/diary/ai/analyze",
     handler: async (request, container) => {
       const body = validateOwned(diaryAiAnalyzeSchema, request);
-      return ok(toJson(await container.diaryAiService.analyze(body.userId, body.question)));
+      const analysis = await container.diaryAiService.analyze(body.userId, body.question);
+      return ok({ analysis });
     },
   },
 

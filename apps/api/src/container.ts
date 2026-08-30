@@ -130,6 +130,7 @@ export async function createApiContainer(
   return {
     aiService,
     practiceRepository,
+    diaryRepository,
     practiceLibraryService: new PracticeLibraryService(practiceRepository, materialRepository),
     scheduleService,
     scheduleAiService: new ScheduleAiService(aiService, scheduleService, practiceRepository),
