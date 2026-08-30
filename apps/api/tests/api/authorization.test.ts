@@ -456,3 +456,52 @@ describe("Авторизация: Telegram init data", () => {
     expect(validateTelegramInitData(params.toString(), token)).toBe(true);
   });
 });
+
+describe("Регрессия безопасности: защита от подделки Telegram init data", () => {
+  const token = "123456:AA-security-token";
+
+  it("отвергает валидную подпись с дописанным символом в конец hash", () => {
+    const valid = buildInitData(token, Math.floor(Date.now() / 1000));
+    const forged = valid.replace(/hash=[0-9a-fA-F]+/, (m) => `${m}0`);
+    expect(forged).not.toBe(valid);
+    expect(validateTelegramInitData(forged, token)).toBe(false);
+  });
+
+  it("отвергает валидную подпись с «мусором» (не-hex) в конце hash", () => {
+    const valid = buildInitData(token, Math.floor(Date.now() / 1000));
+    const forged = valid.replace(/hash=[0-9a-fA-F]+/, (m) => `${m}xx`);
+    expect(validateTelegramInitData(forged, token)).toBe(false);
+  });
+
+  it("отвергает hash с перевёрнутым одним символом", () => {
+    const valid = buildInitData(token, Math.floor(Date.now() / 1000));
+    const corrupted = valid.replace(/(hash=[0-9a-fA-F]{63})([0-9a-fA-F])/, (_m, p1, p2) =>
+      `${p1}${p2 === "0" ? "1" : "0"}`,
+    );
+    expect(validateTelegramInitData(corrupted, token)).toBe(false);
+  });
+
+  it("отвергает полностью подменённый hash", () => {
+    const valid = buildInitData(token, Math.floor(Date.now() / 1000));
+    const replaced = valid.replace(/hash=[0-9a-fA-F]+/, `hash=${"a".repeat(64)}`);
+    expect(validateTelegramInitData(replaced, token)).toBe(false);
+  });
+
+  it("отвергает пустой hash (при свежем auth_date — отказ именно по формату)", () => {
+    const params = new URLSearchParams({
+      auth_date: String(Math.floor(Date.now() / 1000)),
+      user: JSON.stringify({ id: 42 }),
+    });
+    params.set("hash", "");
+    expect(validateTelegramInitData(params.toString(), token)).toBe(false);
+  });
+
+  it("отвергает короткий (32 hex) hash (при свежем auth_date — отказ именно по формату)", () => {
+    const params = new URLSearchParams({
+      auth_date: String(Math.floor(Date.now() / 1000)),
+      user: JSON.stringify({ id: 42 }),
+    });
+    params.set("hash", "a".repeat(32));
+    expect(validateTelegramInitData(params.toString(), token)).toBe(false);
+  });
+});

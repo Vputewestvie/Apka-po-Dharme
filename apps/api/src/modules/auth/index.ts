@@ -207,7 +207,19 @@ function extractRawPairs(initData: string): { pairs: string[]; hash: string; aut
   return { pairs, hash, authDateRaw };
 }
 
+/**
+ * Строгая проверка: ровно 64 шестнадцатеричных символа (SHA-256 hex digest).
+ * Без этого фильтра Buffer.from(hash, "hex") «съедает» нешестнадцатеричный
+ * мусор в хвосте строки (например "...xxxx" → невалидные символы отбрасываются,
+ * остаются корректные 32 байта), и подпись принимается злоумышленником.
+ */
+function isHex64(value: string | undefined): value is string {
+  return typeof value === "string" && /^[0-9a-fA-F]{64}$/.test(value);
+}
+
 function constantTimeHexEquals(computedHex: string, providedHex: string): boolean {
+  // Дополнительная защита: обе строки обязаны быть валидным 64-hex.
+  if (!isHex64(computedHex) || !isHex64(providedHex)) return false;
   const computed = Buffer.from(computedHex, "hex");
   const provided = Buffer.from(providedHex, "hex");
   if (computed.length === 0 || computed.length !== provided.length) return false;
@@ -254,6 +266,10 @@ export function diagnoseTelegramInitData(
 
     const base: InitDataDiagnosis = { ...empty, hashPresent: Boolean(hash), authDate: Number.isFinite(authDate) ? authDate : undefined, freshnessOk, user };
     if (!hash || !freshnessOk) return base;
+    // КРИТИЧНО: hash обязан быть ровно 64 hex-символами (SHA-256). Любой
+    // «мусор» в конце (дописанный символ/строка) делает init data невалидной —
+    // закрывает уязвимость подделки подписи через Buffer.from(., "hex").
+    if (!isHex64(hash)) return base;
 
     const webAppSecret = createHmac("sha256", "WebAppData").update(botToken).digest();
     const candidates: Array<{ variant: string; check: string; secret: Buffer }> = [
