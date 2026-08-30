@@ -38,6 +38,9 @@ The output object must use this schema:
 Today's actual date is ${todayIsoDate()}. Always use it as the reference point: never invent another year or date.
 If the command contains relative date words like сегодня, завтра, послезавтра, вчера, next week, or tomorrow, convert them to the actual date in YYYY-MM-DD format relative to today's date above.
 If the command mentions no date at all, use today's date (${todayIsoDate()}).
+Users often speak conversationally (например: «давай немножко медитируем, немножко погуляем»). Convert verbs and casual hints into practice names: медитируем → медитация, погуляем → прогулка, почитаем → чтение, подышим → дыхание.
+If the text mentions ANY activity, always return at least one item. Use 15 as default durationMinutes when no number is named («немножко», «чуть-чуть» ≈ 10).
+Only return "intent":"unknown" with empty items when the text has nothing to do with planning practices (a greeting, a question, small talk).
 If you cannot parse the command, return a JSON object with "intent":"unknown", "date":null, "items":[], "rawText":"original text".
 Parse this Russian schedule command exactly:
 ${request.text}`;

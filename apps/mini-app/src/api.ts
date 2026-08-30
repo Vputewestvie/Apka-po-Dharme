@@ -65,7 +65,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     headers,
   });
   if (!response.ok) {
-    throw new Error(`Request failed: ${response.status}`);
+    // Сервер присылает понятный текст ошибки (например, подсказку про план
+    // дня) — показываем его, а не безликое «Request failed: 400».
+    let detail = `Request failed: ${response.status}`;
+    try {
+      const payload = (await response.json()) as ApiFailure;
+      if (payload && !payload.ok && payload.error) detail = payload.error;
+    } catch {
+      // тело не JSON — остаётся общий текст со статусом
+    }
+    throw new Error(detail);
   }
 
   const payload = (await response.json()) as ApiResult<T>;
