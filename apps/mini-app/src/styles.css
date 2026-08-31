@@ -1046,17 +1046,13 @@ a {
   flex-shrink: 0;
 }
 
-/* --- Sound Bath: фоновые поющие чаши --- */
-.soundbath {
-  display: grid;
-  gap: 10px;
-}
+/* --- Sound Bath: фоновые медитации и слои природы --- */
 
-.soundbath-row {
+.soundbath-head {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
 }
 
 .soundbath-toggle {
@@ -1086,48 +1082,20 @@ a {
   box-shadow: var(--shadow-glow);
 }
 
-.soundbath-track-btn {
-  appearance: none;
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 12px;
-  height: 36px;
-  border: 1px solid var(--border);
-  background: var(--surface-hover);
-  color: var(--text);
-  border-radius: var(--radius-full);
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 600;
-  transition: all var(--duration-fast) var(--ease-out);
-}
-
-.soundbath-track-btn:hover {
-  border-color: var(--border-strong);
-  background: var(--surface);
-}
-
-.soundbath-track-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .soundbath-vol {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   color: var(--text-secondary);
-  flex-shrink: 0;
+  flex: 1;
+  min-width: 0;
 }
 
 .soundbath-vol input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
-  width: 88px;
+  flex: 1;
+  min-width: 0;
   height: 4px;
   border-radius: var(--radius-full);
   background: var(--accent-soft);
@@ -1153,55 +1121,150 @@ a {
   background: var(--accent);
 }
 
-.soundbath-picker {
+/* Каталог длинный (20 треков), поэтому список прокручивается сам,
+   а вся панель остаётся в пределах экрана. */
+.soundbath-body {
+  max-height: min(46vh, 320px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin-right: -4px;
+  padding-right: 4px;
+}
+
+.soundbath-section {
   display: grid;
-  gap: 6px;
-  padding: 8px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  animation: card-pop var(--duration-fast) var(--ease-out);
+  gap: 8px;
 }
 
-.soundbath-option {
+.soundbath-section + .soundbath-section {
+  margin-top: 14px;
+}
+
+.soundbath-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Круглые кнопки без текста: тематическая иконка говорит сама за себя.
+   auto-fill: в двух разделах разное число треков, сетка сама переносит. */
+.soundbath-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(46px, 1fr));
+  gap: 8px;
+  justify-items: center;
+  max-height: 168px;
+  overflow-y: auto;
+  padding: 2px;
+}
+
+.soundbath-grid--nature {
+  max-height: 232px;
+}
+
+.soundbath-btn {
+  color: var(--text-secondary);
   appearance: none;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text);
+  position: relative;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface-hover);
+  display: grid;
+  place-items: center;
   cursor: pointer;
-  font-size: 13px;
-  font-weight: 600;
-  text-align: left;
-  transition: all var(--duration-fast) var(--ease-out);
+  padding: 0;
+  transition: transform var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
 }
 
-.soundbath-option:hover {
-  background: var(--accent-soft);
-}
-
-.soundbath-option.is-active {
-  background: var(--accent-soft);
-  border-color: var(--accent);
+.soundbath-btn:hover {
+  border-color: var(--border-strong);
+  transform: scale(1.07);
   color: var(--accent);
 }
 
-.soundbath-option .soundbath-note {
-  margin-left: auto;
+.soundbath-btn:active {
+  transform: scale(0.95);
+}
+
+.soundbath-btn.is-on {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), var(--shadow-glow);
+}
+
+.soundbath-dot {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--surface-strong);
+  animation: soundbath-pulse 1s ease-in-out infinite;
+}
+
+.soundbath-loading {
+  margin: 8px 2px 0;
   font-size: 11px;
-  font-weight: 500;
   color: var(--muted);
 }
 
+@keyframes soundbath-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .soundbath-dot {
+    animation: none;
+  }
+}
+
 .soundbath-attrib {
-  margin: 2px 4px 0;
+  margin: 12px 2px 0;
   font-size: 10px;
   line-height: 1.4;
   color: var(--muted);
+}
+
+/* Стилизованная поющая чаша на кнопках FAB и включения/выключения. */
+.soundbath-toggle .bowl-waves,
+.soundbath-fab-btn .bowl-waves {
+  transform-origin: 12px 16px;
+  animation: soundbath-bowlwave 2.4s ease-in-out infinite;
+}
+
+@keyframes soundbath-bowlwave {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 0.85;
+    transform: translateY(-1px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .soundbath-toggle .bowl-waves,
+  .soundbath-fab-btn .bowl-waves {
+    animation: none;
+  }
 }
 
 /* --- Адаптация: планшеты и десктоп --- */
